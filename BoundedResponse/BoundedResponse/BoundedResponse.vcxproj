@@ -140,6 +140,10 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="BoundedResponse.cpp" />
+    <ClCompile Include="Loss.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Loss.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -2,14 +2,34 @@
 //
 
 #include <iostream>
+#include "Loss.h"
 
 int main()
 {
-    int num;
+    Loss g;
+    double x, y;
     std::cout << "Hello World!";
-    std::cout << "\nPlease enter a digit: ";
-    std::cin >> num;
-    std::cout << "The value entered was: " << num;
+
+    // test of new branch cut in Loss::Sqrt()
+    std::cout << "\nPlease enter the real part: ";
+    std::cin >> x;
+    std::cout << "\nPlease enter the imaginary part: ";
+    std::cin >> y;
+    std::complex<double> z(x, y);
+    std::cout << "\nThe value entered was: " << z;
+    std::cout << "\nThe standard complex square root of the value entered is: " << std::sqrt(z);
+    std::cout << "\nThe adjusted complex square root of the value entered is: " << g.posRoot(z);
+
+    // test of Loss::Pi0Int() accuracy
+    std::cout << "\nThe result of Pi0Int: " << g.Pi0Int(0.4, 0.1, 0.1, 0.3, 0.5);
+
+    // test of Loss::Xi() accuracy
+    std::cout << "\nThe result of Xi: " << g.Xi(0.1, 0.2, 1, 3, 5);
+
+    // test of Loss::sumPi0() accuracy -- needs to be fixed
+    std::cout << "\nThe result of sumPi0: " << g.sumPi0(0.1, 1.1, 0.1, 0.4, 100);
+
+    return 0;
 }
 
 // Tips for Getting Started: 
