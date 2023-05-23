@@ -108,3 +108,5 @@ std::complex<double> Loss::sumPi0(double q, double w, double delta, double Qn, d
 
 	return sum;
 }
+
+//not consistent with Mathematica, but compiles without errors
