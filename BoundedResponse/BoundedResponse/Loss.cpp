@@ -28,7 +28,7 @@ std::complex<double> Loss::Pi0Int(double q, double w, double delta, double Qn, d
 
 	// calculate nTerm
 	QQ = pow(Qn, 2);
-	if (QQ > 1)
+	if (QQ > 1) // check if integral can even be nonzero
 	{
 		nTerm = 0;
 	}
@@ -43,9 +43,9 @@ std::complex<double> Loss::Pi0Int(double q, double w, double delta, double Qn, d
 
 	// calculate npTerm
 	QQ = pow(Qnp, 2);
-	if (QQ > 1)
+	if (QQ > 1) // check if integral can even be nonzero
 	{
-		nTerm = 0;
+		npTerm = 0;
 	}
 	else
 	{
@@ -96,7 +96,7 @@ std::complex<double> Loss::sumPi0Interval(double q, double w, double delta, doub
 std::complex<double> Loss::sumPi0(double q, double w, double delta, double Qn, double L)
 {
 	// integer indices within (-inner, inner) enumerate wavevectors that always have non-zero entries
-	const int inner = int(std::floor(L / pi)); // this will never exceed mid-thousands, if not tens-of-thousands
+	const int inner = int(std::floor(L / pi)); // this will never exceed O(10^5)
 
 	std::complex<double> sum = sumPi0Interval(q, w, delta, Qn, L, -inner, inner); // sum from -inner to inner integer indices
 
