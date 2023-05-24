@@ -109,4 +109,37 @@ std::complex<double> Loss::sumPi0(double q, double w, double delta, double Qn, d
 	return sum;
 }
 
-//not consistent with Mathematica, but compiles without errors
+// consistent nMax function for use based off input parameters cutoff and L
+int Loss::nMax(double cutoff, double L)
+{
+	return int(std::ceil(cutoff * L / pi)); // this is the maximum (positive) integral wavevector index for cutoff and L
+}
+
+// boolean check (eventually, bool->int) of whether or not an input is even
+bool Loss::evenQ(int val)
+{
+	if (val % 2 == 0)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+// enumeration of the parity-restricted, positive wavevectors for a given parity and nMax
+Eigen::VectorXi Loss::posList(const int parity, const int nMax)
+{
+	const bool evenPar = evenQ(parity);
+	const bool evenMax = evenQ(nMax);
+	const int tot = int(std::floor((nMax + 1) / 2)) + int(std::floor((evenMax + evenPar) / 2));
+
+	Eigen::VectorXi posList(tot); // placeholder list
+	int counter = 0;
+	while (counter < tot)
+	{
+		// finish!
+		counter++;
+	}
+}

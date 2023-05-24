@@ -13,6 +13,9 @@ public:
 	double Xi(double qx, double qy, double ex, double ey, double ez);
 	std::complex<double> sumPi0Interval(double q, double w, double delta, double Qn, double L, const int min, const int max);
 	std::complex<double> sumPi0(double q, double w, double delta, double Qn, double L);
+	int nMax(double cutoff, double L);
+	bool evenQ(int val);
+	Eigen::VectorXi posList(const int parity, const int nmax);
 
 private:
 	const std::complex<double> i; // sqrt[-1]
