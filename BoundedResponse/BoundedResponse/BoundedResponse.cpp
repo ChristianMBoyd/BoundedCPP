@@ -27,17 +27,14 @@ int main()
    /* std::cout << "\nThe result of Xi: " << g.Xi(0.1, 0.2, 1, 3, 5);*/
 
     // test of Loss::sumPi0() accuracy -- needs to be fixed
-    /*std::cout << "\nThe result of sumPi0: " << g.sumPi0(0.1, 1.1, 0.1, 0.4, 100);*/
+    //std::cout << "\nThe result of sumPi0: " << g.sumPi0(0.1, 1.1, 0.1, 0.4, 100);
     
     // test of Loss::posList()
+    std::cout << "\nThe result of posList: ";
+    for (int item : g.posList(1, 10)) // nice C++ 11 feature
+    {
+        std::cout << item << ", ";
+    }
 
     return 0;
 }
-
-// Tips for Getting Started: 
-//   1. Use the Solution Explorer window to add/manage files
-//   2. Use the Team Explorer window to connect to source control
-//   3. Use the Output window to see build output and other messages
-//   4. Use the Error List window to view errors
-//   5. Go to Project > Add New Item to create new code files, or Project > Add Existing Item to add existing code files to the project
-//   6. In the future, to open this project again, go to File > Open > Project and select the .sln file

@@ -139,7 +139,9 @@ Eigen::VectorXi Loss::posList(const int parity, const int nMax)
 	int counter = 0;
 	while (counter < tot)
 	{
-		// finish!
+		posList[counter] = 1 - evenPar + 2 * counter; // enumerate entries
 		counter++;
 	}
+
+	return posList;
 }
