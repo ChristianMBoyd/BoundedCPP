@@ -29,9 +29,9 @@ int main()
     // test of Loss::sumPi0() accuracy -- needs to be fixed
     //std::cout << "\nThe result of sumPi0: " << g.sumPi0(0.1, 1.1, 0.1, 0.4, 100);
     
-    // test of Loss::posList()
-    std::cout << "\nThe result of posList: ";
-    for (int item : g.posList(1, 10)) // nice C++ 11 feature
+    // test of Loss::intList()  --- built with posList()
+    std::cout << "\nThe result of intList: ";
+    for (int item : g.intList(1, 13)) // nice C++ 11 feature
     {
         std::cout << item << ", ";
     }

@@ -145,3 +145,18 @@ Eigen::VectorXi Loss::posList(const int parity, const int nMax)
 
 	return posList;
 }
+
+// enumerate the full list of parity-restricted integers
+Eigen::VectorXi Loss::intList(const int parity, const int nMax)
+{
+	bool evenPar = evenQ(parity); // if even, avoid double-counting zero element
+	Eigen::VectorXi posList = Loss::posList(parity, nMax); // build off posList
+
+	// negate, toss 0 term if even (avoid double-counting), then reverse order 
+	Eigen::VectorXi negList = -posList(Eigen::lastN(posList.size() - evenPar).reverse(), Eigen::all);
+
+	Eigen::VectorXi intList(posList.size() + negList.size());
+	intList << negList, posList; // increments from most negative to positive parity-restricted integers
+
+	return intList;
+}
