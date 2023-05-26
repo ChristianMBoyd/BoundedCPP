@@ -133,6 +133,8 @@ Eigen::VectorXi Loss::posList(const int parity, const int nMax)
 {
 	const bool evenPar = evenQ(parity);
 	const bool evenMax = evenQ(nMax);
+
+	// size of parity-restricted, positive entries
 	const int tot = int(std::floor((nMax + 1) / 2)) + int(std::floor((evenMax + evenPar) / 2));
 
 	Eigen::VectorXi posList(tot); // placeholder list
@@ -159,4 +161,36 @@ Eigen::VectorXi Loss::intList(const int parity, const int nMax)
 	intList << negList, posList; // increments from most negative to positive parity-restricted integers
 
 	return intList;
+}
+
+// using inversion symmetry, fill in negative-integer indices with posList results
+Eigen::VectorXi Loss::posToIntList(const int parity, const int nMax)
+{
+	bool evenMax = evenQ(nMax);
+	bool evenPar = evenQ(parity);
+
+	const int tot = int(std::floor((nMax + 1) / 2)) + int(std::floor((evenMax + evenPar) / 2)); // total size of list
+
+	Eigen::VectorXi fList(tot); // list to hold entries counting from 0 to tot
+
+	int counter = 0;
+	while (counter < tot) // fill in index positions of posList() vector
+	{
+		fList[counter] = counter;
+		counter++;
+	}
+
+	// store reverse-order of fList, removing the double-counting of the Q=0 term in the case that the parity is even
+	Eigen::VectorXi rList = fList(Eigen::lastN(fList.size() - evenPar).reverse(), Eigen::all);
+
+	Eigen::VectorXi posToIntList(fList.size() + rList.size()); // vector to hold the result of joining rList and fList
+	posToIntList << rList, fList; // Eigen means of joining lists
+
+	return posToIntList;
+}
+
+// the non-interacting density response matrix
+Eigen::MatrixXcd mChi0(double qx, double qy, double mx, double mz, double w, double delta, double L, double cutoff, const int parity)
+{
+	// finish!
 }

@@ -29,11 +29,24 @@ int main()
     // test of Loss::sumPi0() accuracy -- needs to be fixed
     //std::cout << "\nThe result of sumPi0: " << g.sumPi0(0.1, 1.1, 0.1, 0.4, 100);
     
-    // test of Loss::intList()  --- built with posList()
+    // test of Loss::posTointList()  --- built with posList()
+    std::cout << "\nThe result of posToIntList: ";
+    for (int item : g.posToIntList(1, 13)) // nice C++ 11 feature
+    {
+        std::cout << item << ", ";
+    }
+
     std::cout << "\nThe result of intList: ";
     for (int item : g.intList(1, 13)) // nice C++ 11 feature
     {
         std::cout << item << ", ";
+    }
+
+    std::cout << "\nThe result of posList(posToIntList) ";
+    for (int item : g.posToIntList(1, 13)) // nice C++ 11 feature
+    {
+        Eigen::VectorXi posList = g.posList(1, 13);
+        std::cout << posList[item] << ", ";
     }
 
     return 0;
