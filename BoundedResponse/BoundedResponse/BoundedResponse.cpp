@@ -30,24 +30,34 @@ int main()
     //std::cout << "\nThe result of sumPi0: " << g.sumPi0(0.1, 1.1, 0.1, 0.4, 100);
     
     // test of Loss::posTointList()  --- built with posList()
-    std::cout << "\nThe result of posToIntList: ";
-    for (int item : g.posToIntList(1, 13)) // nice C++ 11 feature
-    {
-        std::cout << item << ", ";
-    }
+    //std::cout << "\nThe result of posToIntList: ";
+    //for (int item : g.posToIntList(1, 13)) // nice C++ 11 feature
+    //{
+    //    std::cout << item << ", ";
+    //}
 
-    std::cout << "\nThe result of intList: ";
-    for (int item : g.intList(1, 13)) // nice C++ 11 feature
-    {
-        std::cout << item << ", ";
-    }
+    //std::cout << "\nThe result of intList: ";
+    //for (int item : g.intList(1, 13)) // nice C++ 11 feature
+    //{
+    //    std::cout << item << ", ";
+    //}
 
-    std::cout << "\nThe result of posList(posToIntList) ";
-    for (int item : g.posToIntList(1, 13)) // nice C++ 11 feature
-    {
-        Eigen::VectorXi posList = g.posList(1, 13);
-        std::cout << posList[item] << ", ";
-    }
+    //std::cout << "\nThe result of posList(posToIntList) ";
+    //for (int item : g.posToIntList(1, 13)) // nice C++ 11 feature
+    //{
+    //    Eigen::VectorXi posList = g.posList(1, 13);
+    //    std::cout << posList[item] << ", ";
+    //}
+
+    // tests of Loss::mChi0OffDiagList()
+   /* Eigen::VectorXd Qlist = (3.14 / 5) * g.posList(0, g.nMax(5, 5)).cast<double>();
+    Eigen::MatrixXcd offDiagList = g.mChi0OffDiagList(0.1, 1.1, 0.1, Qlist);
+    std::cout << "\nThe initialized part of offDiagList: " << offDiagList(2,1);
+    std::cout << "\n The uninitialized part of offDiagList: " << offDiagList(1,2);*/
+
+    // test of Loss::mChi0
+    Eigen::MatrixXcd mChi0 = g.mChi0(0.1, 0.0, 1., 1., 1.1, 0.1, 4, 1000, 0);
+    std::cout << "\nThe result of mChi0 at specified position: " << mChi0(199,200);
 
     return 0;
 }

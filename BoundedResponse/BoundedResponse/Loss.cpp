@@ -12,8 +12,8 @@ std::complex<double> Loss::posRoot(std::complex<double> z)
 	return i * std::sqrt(-z);
 }
 
-// builds the full 2D planar wavevector integral of Pi0 out by calling Pi0Part() on each term
-std::complex<double> Loss::Pi0Int(double q, double w, double delta, double Qn, double Qnp)
+// builds the full 2D planar wavevector integral of Pi0
+std::complex<double> Loss::Pi0(double q, double w, double delta, double Qn, double Qnp)
 {
 	// this term is universal
 	const double prefactor = 1 / (8 * pi * pow(q, 2));
@@ -61,7 +61,7 @@ std::complex<double> Loss::Pi0Int(double q, double w, double delta, double Qn, d
 }
 
 // the effective planar wavevector as seen within the dielectric system
-double Loss::Xi(double qx, double qy, double ex, double ey, double ez)
+double Loss::xiScale(double qx, double qy, double ex, double ey, double ez)
 {
 	double val = ex * pow(qx, 2) + ey * pow(qy, 2);
 	val = val / ez;
@@ -84,7 +84,7 @@ std::complex<double> Loss::sumPi0Interval(double q, double w, double delta, doub
 	while (counter < size) // loop to enumerate entries
 	{
 		Qnp = waveFactor * (counter + min); // starts at -inner, ends at +inner
-		vec[counter] = (1 / L) * Pi0Int(q, w, delta, Qnp, Qnp + Qn); // Qn is the offset, Qnp is summed over
+		vec[counter] = (1 / L) * Pi0(q, w, delta, Qnp, Qnp + Qn); // Qn is the offset, Qnp is summed over
 		counter++;
 	}
 
@@ -189,8 +189,123 @@ Eigen::VectorXi Loss::posToIntList(const int parity, const int nMax)
 	return posToIntList;
 }
 
-// the non-interacting density response matrix
-Eigen::MatrixXcd mChi0(double qx, double qy, double mx, double mz, double w, double delta, double L, double cutoff, const int parity)
+// planar scaling of q with mass anisotropy
+double Loss::qScale(double qx, double qy, double mx)
 {
-	// finish!
+	return std::sqrt(pow(qx, 2) / mx + mx * pow(qy, 2)); // real-valued root argument 
+}
+
+// anisotropic re-scaling of effective L on internal sums
+double Loss::LScale(double L, double mz)
+{
+	return L * std::sqrt(mz); // real-valued root argument
+}
+
+// the unique "diagonal" values of mChi0
+Eigen::VectorXcd Loss::mChi0DiagList(double q, double w, double delta, Eigen::VectorXd& Qlist, double L)
+{
+	// Qlist passed by reference as per Eigen suggestions
+	const int size = Qlist.size();
+
+	Eigen::VectorXcd diagList(size);
+
+	int counter = 0;
+	while (counter < size)
+	{
+		diagList[counter] = L * sumPi0(q, w, delta, Qlist[counter], L);
+		counter++;
+	}
+
+	return diagList;
+}
+
+// a lower-triangular matrix holding the unique entries of the (symmetric) off-diagonal elements of mChi0
+Eigen::MatrixXcd Loss::mChi0OffDiagList(double q, double w, double delta, Eigen::VectorXd& Qlist)
+{
+	const int size = Qlist.size();
+
+	Eigen::MatrixXcd offDiagList(size, size);
+
+	int n = 0; // inner loop
+	int m = 0; // outer loop
+
+	while (m < size)
+	{
+		n = 0; // reset for additional loops
+		while (n <= m)
+		{
+			// symmetric combination of out-of-plane wavevector arguments of Pi0
+			offDiagList(m, n) = Pi0(q, w, delta, (Qlist[m] + Qlist[n]) / 2, (Qlist[m] - Qlist[n]) / 2)
+				+ Pi0(q, w, delta, (Qlist[m] - Qlist[n]) / 2, (Qlist[m] + Qlist[n]) / 2);
+			n++;
+		}
+		m++;
+	}
+
+	return offDiagList;
+}
+
+// check if the Qlist entry is zero, requires same L (possibly scaled) fed into Qlist 
+bool Loss::zeroQ(double Q, double L)
+{
+
+	return (Q < pi / L); // concern over "Q == 0" check, only value Q<pi/L is Q=0.
+}
+
+// the non-interacting density response matrix, spans negative and positive integral indices
+Eigen::MatrixXcd Loss::mChi0(double qx, double qy, double mx, double mz, double w, double delta, double L, double cutoff, const int parity)
+{
+	const double qs = qScale(qx, qy, mx);
+	const double Ls = LScale(L, mz);
+	const int nMax = Loss::nMax(cutoff, L);
+	
+	// positive out-of-plane wavevector list, cast to double explicitly for VectorXd initialization
+	Eigen::VectorXd Qlist = (pi / Ls) * posList(parity, nMax).cast<double>();
+	const Eigen::VectorXi p2iList = posToIntList(parity, nMax); // map from strictly positive integral indices in Qlist to all indices
+	const int size = p2iList.size(); // the size of mChi0 when including negative integral indices
+
+	// enumerate unique entries from Q inversion symmetry + mChi0 being symmetric in Qlist indices
+	Eigen::VectorXcd diagList = mChi0DiagList(qs, w, delta, Qlist, Ls); // pass scaled qs and Ls to sumPi0
+	Eigen::MatrixXcd offDiagList = mChi0OffDiagList(qs, w, delta, Qlist); // pass scaled qs to Pi0
+
+	// enumerate entries across all integral indices of mChi0
+	Eigen::MatrixXcd mChi0(size, size); // mChi0 matrix to be filled in
+	std::complex<double> offDiagVal; // holder for offDiagList(m,n) depending upon m<=n conditions
+	std::complex<double> diagVal; // holder for the "diagonal" contribution
+	int m = 0; // outer loop
+	int n = 0; // inner loop
+	while (m < size)
+	{
+		n = 0; // reset inner loop
+		while (n < size)
+		{
+			// "diagonal" part, sign not important
+			if (p2iList[n] == p2iList[m]) // Qlist and diagList are index by p2iList, not m or m directly
+			{
+				// if Qlist[n] = 0, need to be double-counted -- done by casting int -> complex<double> first
+				diagVal = (std::complex<double>(1 + zeroQ(Qlist[p2iList[n]], Ls), 0.0)) * diagList[p2iList[n]];
+			}
+			else
+			{
+				diagVal = 0;
+			}
+
+			// off-diagonal part, entries stored in lower-triangular offDiagList
+			if (p2iList[n] > p2iList[m]) // offDiagList is indexed through p2iList, not n or m directly
+			{
+				offDiagVal = offDiagList(p2iList[n], p2iList[m]); // in this case, interchange order of (m,n)
+			}
+			else
+			{
+				offDiagVal = offDiagList(p2iList[m], p2iList[n]); // follows lower-triangular restriction, normal order
+			}
+
+			// overall factor of (1/2) -- CAUTION: requires 1.0 to avoid integer division (i.e., 1/2==0)
+			mChi0(m, n) = (std::complex<double>(1.0 / 2, 0.0)) * (diagVal - offDiagVal);
+			n++;
+		}
+		m++;
+	}
+
+	return mChi0;
 }
