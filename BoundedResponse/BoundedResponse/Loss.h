@@ -23,7 +23,15 @@ public:
 	Eigen::VectorXcd mChi0DiagList(double q, double w, double delta, Eigen::VectorXd& Qlist, double L);
 	Eigen::MatrixXcd mChi0OffDiagList(double q, double w, double delta, Eigen::VectorXd& Qlist);
 	bool zeroQ(double Q, double L);
-	Eigen::MatrixXcd mChi0(double qx, double qy, double mx, double mz, double w, double delta, double L, double cutoff, const int parity);
+	Eigen::MatrixXcd mChi0(double qs, double w, double delta, double Ls, const int nMax, Eigen::VectorXd& Qlist, 
+		Eigen::VectorXi& p2iList);
+	Eigen::MatrixXcd mCoulomb(double xi, double alpha, double parTerm, double L, Eigen::VectorXd& Qlist, Eigen::VectorXi& p2iList);
+	Eigen::MatrixXd ImChi(double dimRPA, Eigen::MatrixXcd& mChi0, Eigen::MatrixXcd& mCoulomb);
+	Eigen::VectorXd vCoulomb(double xi, Eigen::VectorXd& Qlist, Eigen::VectorXi& p2iList);
+	double parityLoss(double q, double qs, double xi, double eps, double alpha, double expTerm, double gTerm, double dimRPA,
+		double w, double delta, double L, double Ls, const int nMax, const int parity);
+	double loss(double qx, double qy, double mx, double mz, double ex, double ey, double ez, double w, double delta, double L,
+		double cutoff, double Delta);
 
 	// consider putting internal functions into private
 private:

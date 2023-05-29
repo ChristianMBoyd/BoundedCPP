@@ -55,9 +55,16 @@ int main()
     std::cout << "\nThe initialized part of offDiagList: " << offDiagList(2,1);
     std::cout << "\n The uninitialized part of offDiagList: " << offDiagList(1,2);*/
 
-    // test of Loss::mChi0
-    Eigen::MatrixXcd mChi0 = g.mChi0(0.1, 0.0, 1., 1., 1.1, 0.1, 4, 1000, 0);
-    std::cout << "\nThe result of mChi0 at specified position: " << mChi0(199,200);
+    // test of Loss::mChi0 -- OLD VERSION!  Currently new inputs, check defs before using!
+    /*Eigen::MatrixXcd mChi0 = g.mChi0(0.1, 0.0, 1., 1., 1.1, 0.1, 4, 1000, 0); // DEPRECATED INPUT
+    std::cout << "\nThe result of mChi0 at specified position: " << mChi0(199,200);*/
+
+    // test of (-1) powers operating as expected
+   /* std::cout << "\nThe result of (-1)^0 is: " << pow(-1, 0);
+    std::cout << "\nThe result of (-1)^1 is: " << pow(-1, 1);*/
+
+    // test of loss() --- VERY slow in debug at large L
+    std::cout << "\nThe result of loss() is: " << g.loss(0.1, 0.3, 1, 10, 3, 3, 5, 0.7, 0.1, 50, 5, 1);
 
     return 0;
 }
