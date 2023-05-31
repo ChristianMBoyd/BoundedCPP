@@ -21,14 +21,13 @@ public:
 	double qScale(double qx, double qy, double mx);
 	double LScale(double L, double mz);
 	Eigen::VectorXcd mChi0DiagList(double q, double w, double delta, Eigen::VectorXd& Qlist, double L);
-	Eigen::MatrixXcd mChi0Diag(double q, double w, double delta, Eigen::VectorXd& Qlist, double L, const int parity); // new
+	Eigen::MatrixXcd mChi0Diag(double q, double w, double delta, Eigen::VectorXd& Qlist, double L, const int parity); // NEW
 	Eigen::MatrixXcd mChi0OffDiagList(double q, double w, double delta, Eigen::VectorXd& Qlist);
-	Eigen::MatrixXcd mChi0OffDiag(double q, double w, double delta, Eigen::VectorXd& Qlist); // new
+	Eigen::MatrixXcd mChi0OffDiag(double q, double w, double delta, Eigen::VectorXd& Qlist); // NEW
 	bool zeroQ(double Q, double L);
 	Eigen::MatrixXcd mChi0(double qs, double w, double delta, double Ls, const int nMax, Eigen::VectorXd& Qlist, 
 		Eigen::VectorXi& p2iList);
-	Eigen::MatrixXcd mChi0New(double qs, double w, double delta, Eigen::VectorXd& Qlist, double Ls,
-		const int nMax, const int parity); // new
+	Eigen::MatrixXcd mChi0New(double qs, double w, double delta, Eigen::VectorXd& Qlist, double Ls, const int parity); // NEW
 	Eigen::MatrixXcd mCoulomb(double xi, double alpha, double parTerm, double L, Eigen::VectorXd& Qlist, Eigen::VectorXi& p2iList);
 	Eigen::MatrixXd ImChi(double dimRPA, Eigen::MatrixXcd& mChi0, Eigen::MatrixXcd& mCoulomb);
 	Eigen::VectorXd vCoulomb(double xi, Eigen::VectorXd& Qlist, Eigen::VectorXi& p2iList);

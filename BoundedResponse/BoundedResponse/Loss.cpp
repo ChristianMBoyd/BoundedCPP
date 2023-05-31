@@ -226,17 +226,21 @@ Eigen::MatrixXcd Loss::mChi0Diag(double q, double w, double delta, Eigen::Vector
 	std::complex<double> offDiag; // bare Pi0 input
 
 	int counter = 0;
+
+	if (evenQ(parity)) // edge case if Qlist[0] == 0
+	{
+		diag = 2 * L * sumPi0(q, w, delta, Qlist[counter], L); // "diagonal" part double-counted for Qlist[0] == 0
+		offDiag = Pi0(q, w, delta, Qlist[counter], 0) + Pi0(q, w, delta, 0, Qlist[counter]); // off-diag NOT double-counted
+		diagVec[counter] = 0.5 * (diag - offDiag); // overall factor of (1/2), unrelated to edge case
+		counter++; // skip this in following loop if encountered
+	}
+
 	while (counter < size)
 	{
-		diag = L * sumPi0(q, w, delta, Qlist[counter], L);
+		diag = L * sumPi0(q, w, delta, Qlist[counter], L); // sumPi0 has a 1/L scaling internally (may remove)
 		offDiag = Pi0(q, w, delta, Qlist[counter], 0) + Pi0(q, w, delta, 0, Qlist[counter]); // still needs the symmetrized result
 		diagVec[counter] = 0.5 * (diag - offDiag); // includes overall factor of (1/2)!
 		counter++;
-	}
-
-	if (evenQ(parity)) // truly zero wavevector contribution along diagonal needs to be double-counted
-	{
-		diagVec[0] *= 2.0; // the zero wavevector is the first argument since Qlist contains only the non-negative entries
 	}
 
 	return diagVec.asDiagonal();
@@ -279,7 +283,7 @@ Eigen::MatrixXcd Loss::mChi0OffDiag(double q, double w, double delta, Eigen::Vec
 	while (m < size)
 	{
 		n = 0; // reset before new loop
-		while (n <= m) // only filling in unique entries manually up to symmetry
+		while (n < m) // only filling in unique entries manually up to symmetry, excluding diagonal
 		{
 			offDiag(m, n) = 0.5 * (Pi0(q, w, delta, (Qlist[m] + Qlist[n]) / 2, (Qlist[m] - Qlist[n]) / 2)
 				+ Pi0(q, w, delta, (Qlist[m] - Qlist[n]) / 2, (Qlist[m] + Qlist[n]) / 2)); // symmetrized result, includes (1/2)!
@@ -295,7 +299,7 @@ Eigen::MatrixXcd Loss::mChi0OffDiag(double q, double w, double delta, Eigen::Vec
 }
 
 // mChi0 built from smaller pre-existing matrices holding only the unique entries
-Eigen::MatrixXcd Loss::mChi0New(double qs, double w, double delta, Eigen::VectorXd& Qlist, double Ls, const int nMax, const int parity)
+Eigen::MatrixXcd Loss::mChi0New(double qs, double w, double delta, Eigen::VectorXd& Qlist, double Ls, const int parity)
 {
 	// enumerate minimal entries
 	Eigen::MatrixXcd diag = mChi0Diag(qs, w, delta, Qlist, Ls, parity);
@@ -303,41 +307,40 @@ Eigen::MatrixXcd Loss::mChi0New(double qs, double w, double delta, Eigen::Vector
 
 	Eigen::MatrixXcd miniChi0 = diag - offDiag; // diag and offDiag construction includes overall factor of (1/2)
 
-	// determine total size -- note: need parity call anyway for mChi0Diag(), may as well pass nMax		
-	bool evenMax = evenQ(nMax);
+	// determine total size -- note: need parity call anyway for mChi0Diag()
 	bool evenPar = evenQ(parity);
-	const int size = int(std::floor((nMax + 1) / 2)) + int(std::floor((evenMax + evenPar) / 2)); // total size of list
+	const int size = 2 * Qlist.size() - evenPar; // spans all integral indices: avoid double-counting zero if even
 
 	Eigen::MatrixXcd mChi0(size, size); // full matrix
 
 	if (evenQ(parity)) // case of even matrix dimensions -- i.e., a middle row/column
 	{
-		const int longSize = Qlist.size(); // dimensions of largest unique bottom-right block
-		const int smallSize = longSize - 1; // dimensions of smaller sides in the rest
+		const int large = Qlist.size(); // dimensions of largest unique bottom-right block
+		const int small = large - 1; // dimensions of smaller sides in the rest
 
-		mChi0.bottomRightCorner(longSize, longSize) = miniChi0; // largest block
-		mChi0.bottomLeftCorner(longSize, smallSize) = 
-			miniChi0.rightCols(smallSize).colwise().reverse(); // counts from bottom middle leftward, ignoring center line
-		mChi0.topRightCorner(smallSize, longSize) =
-			miniChi0.bottomRows(smallSize).rowwise().reverse(); // counts from right middle upward, ignoring center line
-		mChi0.topLeftCorner(smallSize, smallSize) =
-			mChi0.topRightCorner(smallSize, longSize).rightCols(smallSize).colwise().reverse(); // counts from upper middle leftward
+		mChi0.bottomRightCorner(large, large) = miniChi0; // largest block
+		mChi0.bottomLeftCorner(large, small) =
+			miniChi0.rightCols(small).rowwise().reverse(); // counts from bottom middle leftward, ignoring center line
+		mChi0.topRightCorner(small, large) =
+			miniChi0.bottomRows(small).colwise().reverse(); // counts from right middle upward, ignoring center line
+		mChi0.topLeftCorner(small, small) =
+			mChi0.topRightCorner(small, large).rightCols(small).rowwise().reverse(); // counts from upper middle leftward
 	}
 	else // case of odd matrix dimensions -- i.e., decomposable into 4 equal size block matrices
 	{
-		const int innerSize = Qlist.size(); // length of minimal set
+		const int inner = Qlist.size(); // length of minimal set
 
-		mChi0.bottomRightCorner(innerSize, innerSize) = miniChi0; // all positive, unchanged
-		mChi0.bottomLeftCorner(innerSize, innerSize) = miniChi0.colwise().reverse(); // counts from bottom middle leftward
-		mChi0.topRightCorner(innerSize, innerSize) = miniChi0.rowwise().reverse(); // counts from the right-middle upward
-		mChi0.topLeftCorner(innerSize, innerSize) = 
-			mChi0.topRightCorner(innerSize, innerSize).colwise().reverse(); // counts from midpoint leftward and upward
+		mChi0.bottomRightCorner(inner, inner) = miniChi0; // all positive, unchanged
+		mChi0.bottomLeftCorner(inner, inner) = miniChi0.rowwise().reverse(); // counts from bottom middle leftward
+		mChi0.topRightCorner(inner, inner) = miniChi0.colwise().reverse(); // counts from the right-middle upward
+		mChi0.topLeftCorner(inner, inner) = 
+			mChi0.topRightCorner(inner, inner).rowwise().reverse(); // counts from midpoint leftward and upward
 	}
 	
 	return mChi0;
 }
 
-// check if the Qlist entry is zero, requires same L (possibly scaled) fed into Qlist 
+// check if the Qlist entry is zero, requires same L (possibly scaled) fed into Qlist -- may be deprecated
 bool Loss::zeroQ(double Q, double L)
 {
 
@@ -466,7 +469,7 @@ double Loss::parityLoss(double q, double qs, double xi, double eps, double alpha
 
 	// build mChi0
 	Eigen::VectorXd mQlist = (L / Ls) * Qlist; // mChi0 takes scaled wavevectors, but same p2iList map
-	Eigen::MatrixXcd mChi0 = Loss::mChi0(qs, w, delta, Ls, nMax, mQlist, p2iList);
+	Eigen::MatrixXcd mChi0 = Loss::mChi0New(qs, w, delta,Qlist, Ls, parity);
 
 	// build mCoulomb
 	double parTerm = (1.0 - pow(-1.0, parity) * expTerm) / (1.0 - pow(1.0, parity) * alpha * expTerm); // parity-dependent Coulomb term

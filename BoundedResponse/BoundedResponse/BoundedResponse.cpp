@@ -63,17 +63,21 @@ int main()
    /* std::cout << "\nThe result of (-1)^0 is: " << pow(-1, 0);
     std::cout << "\nThe result of (-1)^1 is: " << pow(-1, 1);*/
 
-    // test of mChi0New -- entries are off, double check the linear algebra, the Eigen:: calls, and signs!
-    const int parity = 1;
-    const double L = 4.0;
-    const int nMax = g.nMax(5, L);
-    Eigen::VectorXd Qlist = (3.141592653589793238463 / L) * g.posList(parity, nMax).cast<double>();
-    std::cout << "\nThe result of mChi0 at position (1,1): ";
-    Eigen::MatrixXcd mChi0 = g.mChi0New(0.1, 1.1, 0.1, Qlist, L, nMax, parity);
-    std::cout << mChi0;
+    // test of mChi0New
+    //const int parity = 1;
+    //const double L = 4.0;
+    //const int nMax = g.nMax(5, L); // cutoff = 5
+    //Eigen::VectorXd Qlist = (3.141592653589793238463 / L) * g.posList(parity, nMax).cast<double>();
+    //std::cout << "\nThe result under investigation:\n";
+    //Eigen::MatrixXcd mChi0 = g.mChi0New(0.1, 1.1, 0.1, Qlist, L, parity);
+    //Eigen::MatrixXcd mChi0OffDiag = g.mChi0OffDiag(0.1, 1.1, 0.1, Qlist);
+    //Eigen::MatrixXcd mChi0Diag = g.mChi0Diag(0.1, 1.1, 0.1, Qlist, L, parity);
+    //Eigen::MatrixXcd test(2, 2);
+    //test << 1, 2, 3, 4;
 
-    // test of loss() --- NEXT: re-write diag/offdiag to produce m++, then use Eigen tricks to build full mChi0
-    // std::cout << "\nThe result of loss() is: " << g.loss(0.1, 0.3, 1, 10, 3, 3, 5, 0.7, 0.1, 100, 5, 1);
+    // test of loss(), using mChi0New() -- NEXT: improve mCoul, ImChi, vCoul, etc. --- find ways to reduce Eigen:: initializations!
+    std::cout << "The result: ";
+    std::cout << g.loss(0.1, 0.0, 1., 1., 1., 1., 1., 1.1, 0.1, 50, 5, 1.);
 
     return 0;
 }
