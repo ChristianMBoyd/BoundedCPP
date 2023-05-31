@@ -63,8 +63,17 @@ int main()
    /* std::cout << "\nThe result of (-1)^0 is: " << pow(-1, 0);
     std::cout << "\nThe result of (-1)^1 is: " << pow(-1, 1);*/
 
-    // test of loss() --- VERY slow in debug at large L
-    std::cout << "\nThe result of loss() is: " << g.loss(0.1, 0.3, 1, 10, 3, 3, 5, 0.7, 0.1, 50, 5, 1);
+    // test of mChi0New -- entries are off, double check the linear algebra, the Eigen:: calls, and signs!
+    const int parity = 1;
+    const double L = 4.0;
+    const int nMax = g.nMax(5, L);
+    Eigen::VectorXd Qlist = (3.141592653589793238463 / L) * g.posList(parity, nMax).cast<double>();
+    std::cout << "\nThe result of mChi0 at position (1,1): ";
+    Eigen::MatrixXcd mChi0 = g.mChi0New(0.1, 1.1, 0.1, Qlist, L, nMax, parity);
+    std::cout << mChi0;
+
+    // test of loss() --- NEXT: re-write diag/offdiag to produce m++, then use Eigen tricks to build full mChi0
+    // std::cout << "\nThe result of loss() is: " << g.loss(0.1, 0.3, 1, 10, 3, 3, 5, 0.7, 0.1, 100, 5, 1);
 
     return 0;
 }

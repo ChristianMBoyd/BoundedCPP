@@ -9,7 +9,7 @@ Loss::Loss() : i(0.0, 1.0) , pi (3.141592653589793238463)
 // i.e., all square roots return a positive imaginary part
 std::complex<double> Loss::posRoot(std::complex<double> z)
 {
-	return i * std::sqrt(-z);
+	return i * std::sqrt(-z); // i.e., std::sqrt() handles std::complex<double>, just wrong branch cut
 }
 
 // builds the full 2D planar wavevector integral of Pi0
@@ -73,22 +73,19 @@ double Loss::xiScale(double qx, double qy, double ex, double ey, double ez)
 // a sum over a single Qn in Pi0Int across the integer indices enumerated by min and max
 std::complex<double> Loss::sumPi0Interval(double q, double w, double delta, double Qn, double L, const int min, const int max)
 {
-	std::complex<double> sum; // placeholder for sum return
+	std::complex<double> sum(0, 0); // placeholder for sum return, initialized to zero
 	const double waveFactor = pi / L; // convert integer indices into wavevectors
 	const int size = max - min + 1; // total number of integer indices to sum over, including start and end points.
 	double Qnp; // wavevector to be summed over
-
-	Eigen::VectorXcd vec(size); // vector of entries
 
 	int counter = 0;
 	while (counter < size) // loop to enumerate entries
 	{
 		Qnp = waveFactor * (counter + min); // starts at -inner, ends at +inner
-		vec[counter] = (1 / L) * Pi0(q, w, delta, Qnp, Qnp + Qn); // Qn is the offset, Qnp is summed over
+		sum += (1 / L) * Pi0(q, w, delta, Qnp, Qnp + Qn); // Qn is the offset, Qnp is summed over
 		counter++;
 	}
 
-	sum = vec.sum();
 	return sum;
 }
 
@@ -104,7 +101,7 @@ std::complex<double> Loss::sumPi0(double q, double w, double delta, double Qn, d
 	const int min = int(std::ceil(-(Qn + 1) * L / pi)); // for values smaller, now Qn+Qnp is below -1 and does not contribute
 	const int max = std::min(-inner - 1, int(std::floor((1 - Qn) * L / pi))); // consider overlap with innerVec range
 
-	sum = sum + sumPi0Interval(q, w, delta, Qn, L, min, max); // sum over this secondary range
+	sum += sumPi0Interval(q, w, delta, Qn, L, min, max); // sum over this secondary range
 
 	return sum;
 }
@@ -148,7 +145,7 @@ Eigen::VectorXi Loss::posList(const int parity, const int nMax)
 	return posList;
 }
 
-// enumerate the full list of parity-restricted integers
+// enumerate the full list of parity-restricted integers -- may be unused!
 Eigen::VectorXi Loss::intList(const int parity, const int nMax)
 {
 	bool evenPar = evenQ(parity); // if even, avoid double-counting zero element
@@ -219,6 +216,32 @@ Eigen::VectorXcd Loss::mChi0DiagList(double q, double w, double delta, Eigen::Ve
 	return diagList;
 }
 
+// the unique entries diagonal entries within mChi0 --- includes the "off-diagonal" contribution AND factor of (1/2)!
+Eigen::MatrixXcd Loss::mChi0Diag(double q, double w, double delta, Eigen::VectorXd& Qlist, double L, const int parity)
+{
+	const int size = Qlist.size(); // only explicitly calculating the smaller, parity-restricted positive entries
+	Eigen::VectorXcd diagVec(size); // holder for diagonal entries
+
+	std::complex<double> diag; // sumPi0 innput
+	std::complex<double> offDiag; // bare Pi0 input
+
+	int counter = 0;
+	while (counter < size)
+	{
+		diag = L * sumPi0(q, w, delta, Qlist[counter], L);
+		offDiag = Pi0(q, w, delta, Qlist[counter], 0) + Pi0(q, w, delta, 0, Qlist[counter]); // still needs the symmetrized result
+		diagVec[counter] = 0.5 * (diag - offDiag); // includes overall factor of (1/2)!
+		counter++;
+	}
+
+	if (evenQ(parity)) // truly zero wavevector contribution along diagonal needs to be double-counted
+	{
+		diagVec[0] *= 2.0; // the zero wavevector is the first argument since Qlist contains only the non-negative entries
+	}
+
+	return diagVec.asDiagonal();
+}
+
 // a lower-triangular matrix holding the unique entries of the (symmetric) off-diagonal elements of mChi0
 Eigen::MatrixXcd Loss::mChi0OffDiagList(double q, double w, double delta, Eigen::VectorXd& Qlist)
 {
@@ -243,6 +266,75 @@ Eigen::MatrixXcd Loss::mChi0OffDiagList(double q, double w, double delta, Eigen:
 	}
 
 	return offDiagList;
+}
+
+// the unique off-diagonal entries, already symmetrized and with 0s on the diagonal
+Eigen::MatrixXcd Loss::mChi0OffDiag(double q, double w, double delta, Eigen::VectorXd& Qlist)
+{
+	const int size = Qlist.size();
+	Eigen::MatrixXcd offDiag = Eigen::MatrixXd::Constant(size, size, 0.0); // initialize zero matrix
+
+	int m = 0; // outer
+	int n = 0; // inner
+	while (m < size)
+	{
+		n = 0; // reset before new loop
+		while (n <= m) // only filling in unique entries manually up to symmetry
+		{
+			offDiag(m, n) = 0.5 * (Pi0(q, w, delta, (Qlist[m] + Qlist[n]) / 2, (Qlist[m] - Qlist[n]) / 2)
+				+ Pi0(q, w, delta, (Qlist[m] - Qlist[n]) / 2, (Qlist[m] + Qlist[n]) / 2)); // symmetrized result, includes (1/2)!
+			n++;
+		}
+		m++;
+	}
+
+	// fill in zero entries with symmetrized values, leaving 0s along diagonal
+	offDiag += offDiag.transpose().eval(); // force in-place evaluation before addition, attempt to avoid aliasing issues
+
+	return offDiag;
+}
+
+// mChi0 built from smaller pre-existing matrices holding only the unique entries
+Eigen::MatrixXcd Loss::mChi0New(double qs, double w, double delta, Eigen::VectorXd& Qlist, double Ls, const int nMax, const int parity)
+{
+	// enumerate minimal entries
+	Eigen::MatrixXcd diag = mChi0Diag(qs, w, delta, Qlist, Ls, parity);
+	Eigen::MatrixXcd offDiag = mChi0OffDiag(qs, w, delta, Qlist);
+
+	Eigen::MatrixXcd miniChi0 = diag - offDiag; // diag and offDiag construction includes overall factor of (1/2)
+
+	// determine total size -- note: need parity call anyway for mChi0Diag(), may as well pass nMax		
+	bool evenMax = evenQ(nMax);
+	bool evenPar = evenQ(parity);
+	const int size = int(std::floor((nMax + 1) / 2)) + int(std::floor((evenMax + evenPar) / 2)); // total size of list
+
+	Eigen::MatrixXcd mChi0(size, size); // full matrix
+
+	if (evenQ(parity)) // case of even matrix dimensions -- i.e., a middle row/column
+	{
+		const int longSize = Qlist.size(); // dimensions of largest unique bottom-right block
+		const int smallSize = longSize - 1; // dimensions of smaller sides in the rest
+
+		mChi0.bottomRightCorner(longSize, longSize) = miniChi0; // largest block
+		mChi0.bottomLeftCorner(longSize, smallSize) = 
+			miniChi0.rightCols(smallSize).colwise().reverse(); // counts from bottom middle leftward, ignoring center line
+		mChi0.topRightCorner(smallSize, longSize) =
+			miniChi0.bottomRows(smallSize).rowwise().reverse(); // counts from right middle upward, ignoring center line
+		mChi0.topLeftCorner(smallSize, smallSize) =
+			mChi0.topRightCorner(smallSize, longSize).rightCols(smallSize).colwise().reverse(); // counts from upper middle leftward
+	}
+	else // case of odd matrix dimensions -- i.e., decomposable into 4 equal size block matrices
+	{
+		const int innerSize = Qlist.size(); // length of minimal set
+
+		mChi0.bottomRightCorner(innerSize, innerSize) = miniChi0; // all positive, unchanged
+		mChi0.bottomLeftCorner(innerSize, innerSize) = miniChi0.colwise().reverse(); // counts from bottom middle leftward
+		mChi0.topRightCorner(innerSize, innerSize) = miniChi0.rowwise().reverse(); // counts from the right-middle upward
+		mChi0.topLeftCorner(innerSize, innerSize) = 
+			mChi0.topRightCorner(innerSize, innerSize).colwise().reverse(); // counts from midpoint leftward and upward
+	}
+	
+	return mChi0;
 }
 
 // check if the Qlist entry is zero, requires same L (possibly scaled) fed into Qlist 
@@ -276,7 +368,7 @@ Eigen::MatrixXcd Loss::mChi0(double qs, double w, double delta, double Ls, const
 			if (p2iList[n] == p2iList[m]) // Qlist and diagList are index by p2iList, not m or m directly
 			{
 				// if Qlist[n] = 0, need to be double-counted -- done by casting int -> complex<double> first
-				diagVal = (std::complex<double>(1 + zeroQ(Qlist[p2iList[n]], Ls), 0.0)) * diagList[p2iList[n]];
+				diagVal = (std::complex<double>(1.0 + 1.0 * zeroQ(Qlist[p2iList[n]], Ls))) * diagList[p2iList[n]];
 			}
 			else
 			{
