@@ -198,7 +198,7 @@ double Loss::LScale(double L, double mz)
 	return L * std::sqrt(mz); // real-valued root argument
 }
 
-// the unique "diagonal" values of mChi0
+// the unique "diagonal" values of mChi0 -- DEPRECATED
 Eigen::VectorXcd Loss::mChi0DiagList(double q, double w, double delta, Eigen::VectorXd& Qlist, double L)
 {
 	// Qlist passed by reference as per Eigen suggestions
@@ -246,7 +246,7 @@ Eigen::MatrixXcd Loss::mChi0Diag(double q, double w, double delta, Eigen::Vector
 	return diagVec.asDiagonal();
 }
 
-// a lower-triangular matrix holding the unique entries of the (symmetric) off-diagonal elements of mChi0
+// a lower-triangular matrix holding the unique entries of the (symmetric) off-diagonal elements of mChi0 - DEPRECATED
 Eigen::MatrixXcd Loss::mChi0OffDiagList(double q, double w, double delta, Eigen::VectorXd& Qlist)
 {
 	const int size = Qlist.size();
@@ -340,14 +340,15 @@ Eigen::MatrixXcd Loss::mChi0New(double qs, double w, double delta, Eigen::Vector
 	return mChi0;
 }
 
-// check if the Qlist entry is zero, requires same L (possibly scaled) fed into Qlist -- may be deprecated
+// check if the Qlist entry is zero, requires same L (possibly scaled) fed into Qlist -- DEPRECATED
 bool Loss::zeroQ(double Q, double L)
 {
 
 	return (Q < pi / L); // concern over "Q == 0" check, instead the only value satisfying Q<pi/L is Q=0.
 }
 
-// the parity-dep (p2iList and Qlist) non-interacting density response matrix, all integral indices (enumerated through positives by symmetry)
+// the parity-dep (p2iList and Qlist) non-interacting density response matrix, all integral indices
+// (enumerated through positives by symmetry) -- DEPRECATED
 Eigen::MatrixXcd Loss::mChi0(double qs, double w, double delta, double Ls, const int nMax, Eigen::VectorXd& Qlist, Eigen::VectorXi& p2iList)
 {
 	const int size = p2iList.size(); // the size of mChi0 when including negative integral indices
@@ -398,64 +399,55 @@ Eigen::MatrixXcd Loss::mChi0(double qs, double w, double delta, double Ls, const
 	return mChi0;
 }
 
-// the Coulomb matrix that enters the RPA equation at fixed parity (as set by Qlist and p2iList)
-Eigen::MatrixXcd Loss::mCoulomb(double xi, double alpha, double parTerm, double L, Eigen::VectorXd& Qlist, Eigen::VectorXi& p2iList)
+// the parity-dep (through Qlist and p2iList) Coulomb vector used to evaluate the sum over ImChi
+Eigen::VectorXd Loss::vCoulomb(double xi, Eigen::VectorXd& Qlist, const int parity)
 {
-	const int size = p2iList.size(); // size reflects both 
-	bool diag; // holder for if n=m
-	double prefactor;
-	double infactor;
-	double term;
-	Eigen::MatrixXcd mCoulomb(size, size);
-	int m = 0; // inner loop
-	int n = 0; // outer loop
+	const int size = Qlist.size(); // enumerating only the unique entries by symmetry
 
-	while (m < size)
+	Eigen::VectorXd fList(size); // forward counting list
+
+	int counter = 0;
+	const double xi2 = xi * xi; // likely not an issue
+	while (counter < size)
 	{
-		n = 0; // reset inner loop
-		prefactor = 1.0 / (pow(xi, 2) + pow(Qlist[p2iList[m]], 2)); // cast to double before division, only m-dependent
-		while (n < size)
-		{
-			diag = (n == m); // identity offset
-			infactor = 1.0 / (pow(xi, 2) + pow(Qlist[p2iList[n]], 2)); // cast to double before division, only n-dependent
-			term = prefactor * (diag - (xi / L) * (1 - alpha) * parTerm * infactor); // actual factor
-			mCoulomb(m, n) = std::complex<double>(term); // cast to complex
-			n++;
-		}
-		m++;
+		fList[counter] = 1.0 / (xi2 + pow(Qlist[counter], 2));
+		counter++;
 	}
+
+	const bool evenPar = evenQ(parity);
+
+	// store reverse-order of fList, avoiding double-counting Q=0 term if even parity
+	Eigen::VectorXd rList = fList(Eigen::lastN(fList.size() - evenPar).reverse(), Eigen::all);
+
+	Eigen::VectorXd vCoulomb(fList.size() + rList.size()); // vector to hold the result of joining rList and fList
+	vCoulomb << rList, fList; // Eigen means of joining lists
+
+	return vCoulomb;
+}
+
+// the Coulomb matrix that enters the RPA equation at fixed parity (as set by Qlist and p2iList)
+Eigen::MatrixXd Loss::mCoulomb(double xi, double alpha, double parTerm, double L, Eigen::VectorXd& vCoulomb)
+{
+	const double internalFactor = (xi / L) * (1 - alpha) * parTerm; // multiplies the non-diagonal part
+
+	Eigen::MatrixXd mCoulomb = vCoulomb.asDiagonal(); // initial diagonal part
+	mCoulomb -= internalFactor * vCoulomb * vCoulomb.transpose(); // include off-diagonal part
 	
 	return mCoulomb;
 }
 
 // returns the (parity-dep) imaginary part of mChi (no signs yet) as a double-valued matrix, dimRPA INCLUDES 1/L!
-Eigen::MatrixXd Loss::ImChi(double dimRPA, Eigen::MatrixXcd& mChi0, Eigen::MatrixXcd& mCoulomb)
+Eigen::MatrixXd Loss::ImChi(double dimRPA, Eigen::MatrixXcd& mChi0, Eigen::MatrixXd& mCoulomb)
 {
 	const int size = mChi0.rows(); // either matrix can be used here for reference
-	std::complex<double> cdimRPA = std::complex<double>(dimRPA); // cast to complex
 
-	Eigen::MatrixXcd mRPA = Eigen::MatrixXcd::Identity(size, size) - cdimRPA * (mChi0 * mCoulomb); // RPA matrix
+	// consider restructuring as a matrix linear-algebra problem, prompting Eigen:: to solve on its own
+
+	Eigen::MatrixXcd mRPA = Eigen::MatrixXcd::Identity(size, size) - dimRPA * (mChi0 * mCoulomb); // RPA matrix
 
 	Eigen::MatrixXcd mChi = (mRPA.inverse()) * mChi0; // the parity-restricted RPA result of the mChi matrix
 
 	return mChi.imag(); // return only the imaginary part, which is a double-valued matrix.
-}
-
-// the parity-dep (through Qlist and p2iList) Coulomb vector used to evaluate the sum over ImChi
-Eigen::VectorXd Loss::vCoulomb(double xi, Eigen::VectorXd& Qlist, Eigen::VectorXi& p2iList)
-{
-	const int size = p2iList.size(); // includes positive/negative indices
-
-	Eigen::VectorXd vCoulomb(size);
-
-	int n = 0;
-	while (n < size)
-	{
-		vCoulomb[n] = 1.0 / (pow(xi, 2) + pow(Qlist[p2iList[n]], 2));
-		n++;
-	}
-
-	return vCoulomb;
 }
 
 // the parity-dep sum over ImChi, gTerm includes 1/L^2 but not parity-depedence!
@@ -469,17 +461,17 @@ double Loss::parityLoss(double q, double qs, double xi, double eps, double alpha
 
 	// build mChi0
 	Eigen::VectorXd mQlist = (L / Ls) * Qlist; // mChi0 takes scaled wavevectors, but same p2iList map
-	Eigen::MatrixXcd mChi0 = Loss::mChi0New(qs, w, delta,Qlist, Ls, parity);
+	Eigen::MatrixXcd mChi0 = Loss::mChi0New(qs, w, delta, Qlist, Ls, parity);
+
+	// build vCoulomb
+	Eigen::VectorXd vCoulomb = Loss::vCoulomb(xi, Qlist, parity);
 
 	// build mCoulomb
 	double parTerm = (1.0 - pow(-1.0, parity) * expTerm) / (1.0 - pow(1.0, parity) * alpha * expTerm); // parity-dependent Coulomb term
-	Eigen::MatrixXcd mCoulomb = Loss::mCoulomb(xi, alpha, parTerm, L, Qlist, p2iList);
+	Eigen::MatrixXd mCoulomb = Loss::mCoulomb(xi, alpha, parTerm, L, vCoulomb);
 
 	// build ImChi
 	Eigen::MatrixXd ImChi = Loss::ImChi(dimRPA, mChi0, mCoulomb);
-
-	// build vCoulomb
-	Eigen::VectorXd vCoulomb = Loss::vCoulomb(xi, Qlist, p2iList);
 
 
 	double product = vCoulomb.transpose() * ImChi * vCoulomb; // sum over imChi converted to matrix product
