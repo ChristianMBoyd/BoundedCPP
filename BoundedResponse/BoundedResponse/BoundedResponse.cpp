@@ -75,9 +75,9 @@ int main()
     //Eigen::MatrixXcd test(2, 2);
     //test << 1, 2, 3, 4;
 
-    // test of loss(), using mChi0New() -- NEXT: ImChi --- find ways to reduce Eigen:: initializations!
+    // test of loss(), using optimized mChi0() (previously, mChi0New) --- old implementation is now mChi0Old()
     std::cout << "The result: ";
-    std::cout << g.loss(0.1, 0.0, 1., 1., 1., 1., 1., 1.1, 0.1, 50, 5, 1.);
+    std::cout << g.loss(0.05, 0.01, 1., 10., 7., 3., 5., 1.1, 0.1, 50, 5, 1.);
 
     return 0;
 }

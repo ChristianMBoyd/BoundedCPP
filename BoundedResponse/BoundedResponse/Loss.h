@@ -16,13 +16,11 @@ public:
 	int nMax(double cutoff, double L);
 	bool evenQ(int val);
 	Eigen::VectorXi posList(const int parity, const int nMax);
-	Eigen::VectorXi posToIntList(const int parity, const int nMax);
 	double qScale(double qx, double qy, double mx);
 	double LScale(double L, double mz);
 	Eigen::MatrixXcd mChi0Diag(double q, double w, double delta, Eigen::VectorXd& Qlist, double L, const int parity);
 	Eigen::MatrixXcd mChi0OffDiag(double q, double w, double delta, Eigen::VectorXd& Qlist);
-	bool zeroQ(double Q, double L);
-	Eigen::MatrixXcd mChi0New(double qs, double w, double delta, Eigen::VectorXd& Qlist, double Ls, const int parity);
+	Eigen::MatrixXcd mChi0(double qs, double w, double delta, Eigen::VectorXd& Qlist, double Ls, const int parity);
 	Eigen::VectorXd vCoulomb(double xi, Eigen::VectorXd& Qlist, const int parity);
 	Eigen::MatrixXd mCoulomb(double xi, double alpha, double parTerm, double L, Eigen::VectorXd& vCoulomb);
 	Eigen::MatrixXd ImChi(double dimRPA, Eigen::MatrixXcd& mChi0, Eigen::MatrixXd& mCoulomb);
@@ -32,10 +30,12 @@ public:
 		double cutoff, double Delta);
 
 	// OLD/DEPRECATED
-	Eigen::VectorXi intList(const int parity, const int nMax); // may be unnecessary
+	Eigen::VectorXi intList(const int parity, const int nMax);
+	Eigen::VectorXi posToIntList(const int parity, const int nMax);
 	Eigen::VectorXcd mChi0DiagList(double q, double w, double delta, Eigen::VectorXd& Qlist, double L);
 	Eigen::MatrixXcd mChi0OffDiagList(double q, double w, double delta, Eigen::VectorXd& Qlist);
-	Eigen::MatrixXcd mChi0(double qs, double w, double delta, double Ls, const int nMax, Eigen::VectorXd& Qlist,
+	bool zeroQ(double Q, double L);
+	Eigen::MatrixXcd mChi0Old(double qs, double w, double delta, double Ls, const int nMax, Eigen::VectorXd& Qlist,
 		Eigen::VectorXi& p2iList);
 
 

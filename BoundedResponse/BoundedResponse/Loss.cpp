@@ -160,7 +160,7 @@ Eigen::VectorXi Loss::intList(const int parity, const int nMax)
 	return intList;
 }
 
-// using inversion symmetry, fill in negative-integer indices with posList results
+// using inversion symmetry, fill in negative-integer indices with posList results -- DEPRECATED
 Eigen::VectorXi Loss::posToIntList(const int parity, const int nMax)
 {
 	bool evenMax = evenQ(nMax);
@@ -299,13 +299,13 @@ Eigen::MatrixXcd Loss::mChi0OffDiag(double q, double w, double delta, Eigen::Vec
 }
 
 // mChi0 built from smaller pre-existing matrices holding only the unique entries
-Eigen::MatrixXcd Loss::mChi0New(double qs, double w, double delta, Eigen::VectorXd& Qlist, double Ls, const int parity)
+Eigen::MatrixXcd Loss::mChi0(double qs, double w, double delta, Eigen::VectorXd& Qlist, double Ls, const int parity)
 {
 	// enumerate minimal entries
 	Eigen::MatrixXcd diag = mChi0Diag(qs, w, delta, Qlist, Ls, parity);
 	Eigen::MatrixXcd offDiag = mChi0OffDiag(qs, w, delta, Qlist);
 
-	Eigen::MatrixXcd miniChi0 = diag - offDiag; // diag and offDiag construction includes overall factor of (1/2)
+	Eigen::MatrixXcd miniChi0 = diag - offDiag; // unique (by symmetry) entries, makes up bottom-right corner of full mChi0
 
 	// determine total size -- note: need parity call anyway for mChi0Diag()
 	bool evenPar = evenQ(parity);
@@ -316,7 +316,7 @@ Eigen::MatrixXcd Loss::mChi0New(double qs, double w, double delta, Eigen::Vector
 	if (evenQ(parity)) // case of even matrix dimensions -- i.e., a middle row/column
 	{
 		const int large = Qlist.size(); // dimensions of largest unique bottom-right block
-		const int small = large - 1; // dimensions of smaller sides in the rest
+		const int small = large - 1; // dimensions of smaller side from avoiding the center row/column
 
 		mChi0.bottomRightCorner(large, large) = miniChi0; // largest block
 		mChi0.bottomLeftCorner(large, small) =
@@ -328,7 +328,7 @@ Eigen::MatrixXcd Loss::mChi0New(double qs, double w, double delta, Eigen::Vector
 	}
 	else // case of odd matrix dimensions -- i.e., decomposable into 4 equal size block matrices
 	{
-		const int inner = Qlist.size(); // length of minimal set
+		const int inner = Qlist.size(); // length of smaller block matrices
 
 		mChi0.bottomRightCorner(inner, inner) = miniChi0; // all positive, unchanged
 		mChi0.bottomLeftCorner(inner, inner) = miniChi0.rowwise().reverse(); // counts from bottom middle leftward
@@ -349,7 +349,7 @@ bool Loss::zeroQ(double Q, double L)
 
 // the parity-dep (p2iList and Qlist) non-interacting density response matrix, all integral indices
 // (enumerated through positives by symmetry) -- DEPRECATED
-Eigen::MatrixXcd Loss::mChi0(double qs, double w, double delta, double Ls, const int nMax, Eigen::VectorXd& Qlist, Eigen::VectorXi& p2iList)
+Eigen::MatrixXcd Loss::mChi0Old(double qs, double w, double delta, double Ls, const int nMax, Eigen::VectorXd& Qlist, Eigen::VectorXi& p2iList)
 {
 	const int size = p2iList.size(); // the size of mChi0 when including negative integral indices
 
@@ -407,7 +407,7 @@ Eigen::VectorXd Loss::vCoulomb(double xi, Eigen::VectorXd& Qlist, const int pari
 	Eigen::VectorXd fList(size); // forward counting list
 
 	int counter = 0;
-	const double xi2 = xi * xi; // likely not an issue
+	const double xi2 = xi * xi; // just saving space below
 	while (counter < size)
 	{
 		fList[counter] = 1.0 / (xi2 + pow(Qlist[counter], 2));
@@ -430,7 +430,7 @@ Eigen::MatrixXd Loss::mCoulomb(double xi, double alpha, double parTerm, double L
 {
 	const double internalFactor = (xi / L) * (1 - alpha) * parTerm; // multiplies the non-diagonal part
 
-	Eigen::MatrixXd mCoulomb = vCoulomb.asDiagonal(); // initial diagonal part
+	Eigen::MatrixXd mCoulomb = vCoulomb.asDiagonal(); // initial diagonal part, does not play well with direct addition to below
 	mCoulomb -= internalFactor * vCoulomb * vCoulomb.transpose(); // include off-diagonal part
 	
 	return mCoulomb;
@@ -440,14 +440,12 @@ Eigen::MatrixXd Loss::mCoulomb(double xi, double alpha, double parTerm, double L
 Eigen::MatrixXd Loss::ImChi(double dimRPA, Eigen::MatrixXcd& mChi0, Eigen::MatrixXd& mCoulomb)
 {
 	const int size = mChi0.rows(); // either matrix can be used here for reference
-
-	// consider restructuring as a matrix linear-algebra problem, prompting Eigen:: to solve on its own
-
 	Eigen::MatrixXcd mRPA = Eigen::MatrixXcd::Identity(size, size) - dimRPA * (mChi0 * mCoulomb); // RPA matrix
 
-	Eigen::MatrixXcd mChi = (mRPA.inverse()) * mChi0; // the parity-restricted RPA result of the mChi matrix
+	// this translates to the linear algebra problem mRPA*mChi = mChi0, which Eigen then solves
+	Eigen::MatrixXcd mChi = mRPA.partialPivLu().solve(mChi0);
 
-	return mChi.imag(); // return only the imaginary part, which is a double-valued matrix.
+	return mChi.imag(); // return only the imaginary part, which is a real-valued <double>
 }
 
 // the parity-dep sum over ImChi, gTerm includes 1/L^2 but not parity-depedence!
@@ -456,12 +454,10 @@ double Loss::parityLoss(double q, double qs, double xi, double eps, double alpha
 {
 	// enumerate parity-dependent wavevectors and maps from positive values to all integral values
 	Eigen::VectorXd Qlist = (pi / L) * posList(parity, nMax).cast<double>(); // unscaled positive wavevectors
-	Eigen::VectorXi p2iList = posToIntList(parity, nMax); // conversion from all integral indices to the positive values in Qlist
-	const int size = p2iList.size(); // size of matrices operating over all integral indices
 
 	// build mChi0
 	Eigen::VectorXd mQlist = (L / Ls) * Qlist; // mChi0 takes scaled wavevectors, but same p2iList map
-	Eigen::MatrixXcd mChi0 = Loss::mChi0New(qs, w, delta, Qlist, Ls, parity);
+	Eigen::MatrixXcd mChi0 = Loss::mChi0(qs, w, delta, mQlist, Ls, parity);
 
 	// build vCoulomb
 	Eigen::VectorXd vCoulomb = Loss::vCoulomb(xi, Qlist, parity);
@@ -488,7 +484,7 @@ double Loss::loss(double qx, double qy, double mx, double mz, double ex, double 
 	// integral index cutoff
 	const int nMax = Loss::nMax(cutoff, L);
 	
-	// momenta
+	// length scales
 	double q = std::sqrt(pow(qx, 2) + pow(qy, 2)); // unscaled planar magnitude
 	double qs = qScale(qx, qy, mx); // scaled planar magnitude
 	double xi = xiScale(qx, qy, ex, ey, ez); // dielectric-scaled planar magnitude
