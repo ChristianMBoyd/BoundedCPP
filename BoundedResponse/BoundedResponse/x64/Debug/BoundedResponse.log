@@ -1,2 +1,94 @@
-﻿  BoundedResponse.cpp
+﻿  Loss.cpp
+C:\Users\c0mpo\source\repos\ChristianMBoyd\BoundedCPP\BoundedResponse\BoundedResponse\Loss.cpp(205,29): warning C4244: 'initializing': conversion from 'Eigen::EigenBase<Derived>::Index' to 'int', possible loss of data
+          with
+          [
+              Derived=Eigen::Matrix<double,-1,1,0,-1,1>
+          ]
+C:\Users\c0mpo\source\repos\ChristianMBoyd\BoundedCPP\BoundedResponse\BoundedResponse\Loss.cpp(205,17): warning C4244: 'initializing': conversion from 'Eigen::EigenBase<Derived>::Index' to 'const int', possible loss of data
+          with
+          [
+              Derived=Eigen::Matrix<double,-1,1,0,-1,1>
+          ]
+C:\Users\c0mpo\source\repos\ChristianMBoyd\BoundedCPP\BoundedResponse\BoundedResponse\Loss.cpp(222,29): warning C4244: 'initializing': conversion from 'Eigen::EigenBase<Derived>::Index' to 'int', possible loss of data
+          with
+          [
+              Derived=Eigen::Matrix<double,-1,1,0,-1,1>
+          ]
+C:\Users\c0mpo\source\repos\ChristianMBoyd\BoundedCPP\BoundedResponse\BoundedResponse\Loss.cpp(222,17): warning C4244: 'initializing': conversion from 'Eigen::EigenBase<Derived>::Index' to 'const int', possible loss of data
+          with
+          [
+              Derived=Eigen::Matrix<double,-1,1,0,-1,1>
+          ]
+C:\Users\c0mpo\source\repos\ChristianMBoyd\BoundedCPP\BoundedResponse\BoundedResponse\Loss.cpp(252,29): warning C4244: 'initializing': conversion from 'Eigen::EigenBase<Derived>::Index' to 'int', possible loss of data
+          with
+          [
+              Derived=Eigen::Matrix<double,-1,1,0,-1,1>
+          ]
+C:\Users\c0mpo\source\repos\ChristianMBoyd\BoundedCPP\BoundedResponse\BoundedResponse\Loss.cpp(252,17): warning C4244: 'initializing': conversion from 'Eigen::EigenBase<Derived>::Index' to 'const int', possible loss of data
+          with
+          [
+              Derived=Eigen::Matrix<double,-1,1,0,-1,1>
+          ]
+C:\Users\c0mpo\source\repos\ChristianMBoyd\BoundedCPP\BoundedResponse\BoundedResponse\Loss.cpp(278,29): warning C4244: 'initializing': conversion from 'Eigen::EigenBase<Derived>::Index' to 'int', possible loss of data
+          with
+          [
+              Derived=Eigen::Matrix<double,-1,1,0,-1,1>
+          ]
+C:\Users\c0mpo\source\repos\ChristianMBoyd\BoundedCPP\BoundedResponse\BoundedResponse\Loss.cpp(278,17): warning C4244: 'initializing': conversion from 'Eigen::EigenBase<Derived>::Index' to 'const int', possible loss of data
+          with
+          [
+              Derived=Eigen::Matrix<double,-1,1,0,-1,1>
+          ]
+C:\Users\c0mpo\source\repos\ChristianMBoyd\BoundedCPP\BoundedResponse\BoundedResponse\Loss.cpp(313,36): warning C4244: 'initializing': conversion from 'Eigen::EigenBase<Derived>::Index' to 'int', possible loss of data
+          with
+          [
+              Derived=Eigen::Matrix<double,-1,1,0,-1,1>
+          ]
+C:\Users\c0mpo\source\repos\ChristianMBoyd\BoundedCPP\BoundedResponse\BoundedResponse\Loss.cpp(313,17): warning C4244: 'initializing': conversion from 'Eigen::EigenBase<Derived>::Index' to 'const int', possible loss of data
+          with
+          [
+              Derived=Eigen::Matrix<double,-1,1,0,-1,1>
+          ]
+C:\Users\c0mpo\source\repos\ChristianMBoyd\BoundedCPP\BoundedResponse\BoundedResponse\Loss.cpp(319,31): warning C4244: 'initializing': conversion from 'Eigen::EigenBase<Derived>::Index' to 'int', possible loss of data
+          with
+          [
+              Derived=Eigen::Matrix<double,-1,1,0,-1,1>
+          ]
+C:\Users\c0mpo\source\repos\ChristianMBoyd\BoundedCPP\BoundedResponse\BoundedResponse\Loss.cpp(319,19): warning C4244: 'initializing': conversion from 'Eigen::EigenBase<Derived>::Index' to 'const int', possible loss of data
+          with
+          [
+              Derived=Eigen::Matrix<double,-1,1,0,-1,1>
+          ]
+C:\Users\c0mpo\source\repos\ChristianMBoyd\BoundedCPP\BoundedResponse\BoundedResponse\Loss.cpp(332,31): warning C4244: 'initializing': conversion from 'Eigen::EigenBase<Derived>::Index' to 'int', possible loss of data
+          with
+          [
+              Derived=Eigen::Matrix<double,-1,1,0,-1,1>
+          ]
+C:\Users\c0mpo\source\repos\ChristianMBoyd\BoundedCPP\BoundedResponse\BoundedResponse\Loss.cpp(332,19): warning C4244: 'initializing': conversion from 'Eigen::EigenBase<Derived>::Index' to 'const int', possible loss of data
+          with
+          [
+              Derived=Eigen::Matrix<double,-1,1,0,-1,1>
+          ]
+C:\Users\c0mpo\source\repos\ChristianMBoyd\BoundedCPP\BoundedResponse\BoundedResponse\Loss.cpp(355,31): warning C4244: 'initializing': conversion from 'Eigen::EigenBase<Derived>::Index' to 'int', possible loss of data
+          with
+          [
+              Derived=Eigen::Matrix<int,-1,1,0,-1,1>
+          ]
+C:\Users\c0mpo\source\repos\ChristianMBoyd\BoundedCPP\BoundedResponse\BoundedResponse\Loss.cpp(355,17): warning C4244: 'initializing': conversion from 'Eigen::EigenBase<Derived>::Index' to 'const int', possible loss of data
+          with
+          [
+              Derived=Eigen::Matrix<int,-1,1,0,-1,1>
+          ]
+C:\Users\c0mpo\source\repos\ChristianMBoyd\BoundedCPP\BoundedResponse\BoundedResponse\Loss.cpp(406,29): warning C4244: 'initializing': conversion from 'Eigen::EigenBase<Derived>::Index' to 'int', possible loss of data
+          with
+          [
+              Derived=Eigen::Matrix<double,-1,1,0,-1,1>
+          ]
+C:\Users\c0mpo\source\repos\ChristianMBoyd\BoundedCPP\BoundedResponse\BoundedResponse\Loss.cpp(406,17): warning C4244: 'initializing': conversion from 'Eigen::EigenBase<Derived>::Index' to 'const int', possible loss of data
+          with
+          [
+              Derived=Eigen::Matrix<double,-1,1,0,-1,1>
+          ]
+C:\Users\c0mpo\source\repos\ChristianMBoyd\BoundedCPP\BoundedResponse\BoundedResponse\Loss.cpp(443,29): warning C4244: 'initializing': conversion from 'Eigen::Index' to 'int', possible loss of data
+C:\Users\c0mpo\source\repos\ChristianMBoyd\BoundedCPP\BoundedResponse\BoundedResponse\Loss.cpp(443,17): warning C4244: 'initializing': conversion from 'Eigen::Index' to 'const int', possible loss of data
   BoundedResponse.vcxproj -> C:\Users\c0mpo\source\repos\ChristianMBoyd\BoundedCPP\BoundedResponse\x64\Debug\BoundedResponse.exe

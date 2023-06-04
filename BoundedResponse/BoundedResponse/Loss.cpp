@@ -145,7 +145,7 @@ Eigen::VectorXi Loss::posList(const int parity, const int nMax)
 	return posList;
 }
 
-// enumerate the full list of parity-restricted integers -- may be unused!
+// enumerate the full list of parity-restricted integers -- DEPRECATED
 Eigen::VectorXi Loss::intList(const int parity, const int nMax)
 {
 	bool evenPar = evenQ(parity); // if even, avoid double-counting zero element
@@ -293,19 +293,20 @@ Eigen::MatrixXcd Loss::mChi0OffDiag(double q, double w, double delta, Eigen::Vec
 	}
 
 	// fill in zero entries with symmetrized values, leaving 0s along diagonal
-	offDiag += offDiag.transpose().eval(); // force in-place evaluation before addition, attempt to avoid aliasing issues
+	auto init = offDiag; // forced evaluation anyway, manual temporary
+	offDiag.transposeInPlace(); // transpose
 
-	return offDiag;
+	return init + offDiag; // combine offDiag with its tranpose, maintaining 0s on the diagonal
 }
 
 // mChi0 built from smaller pre-existing matrices holding only the unique entries
 Eigen::MatrixXcd Loss::mChi0(double qs, double w, double delta, Eigen::VectorXd& Qlist, double Ls, const int parity)
 {
 	// enumerate minimal entries
-	Eigen::MatrixXcd diag = mChi0Diag(qs, w, delta, Qlist, Ls, parity);
-	Eigen::MatrixXcd offDiag = mChi0OffDiag(qs, w, delta, Qlist);
+	auto diag = mChi0Diag(qs, w, delta, Qlist, Ls, parity);
+	auto offDiag = mChi0OffDiag(qs, w, delta, Qlist);
 
-	Eigen::MatrixXcd miniChi0 = diag - offDiag; // unique (by symmetry) entries, makes up bottom-right corner of full mChi0
+	auto miniChi0 = diag - offDiag; // unique (by symmetry) entries, makes up bottom-right corner of full mChi0
 
 	// determine total size -- note: need parity call anyway for mChi0Diag()
 	bool evenPar = evenQ(parity);
@@ -430,9 +431,9 @@ Eigen::MatrixXd Loss::mCoulomb(double xi, double alpha, double parTerm, double L
 {
 	const double internalFactor = (xi / L) * (1 - alpha) * parTerm; // multiplies the non-diagonal part
 
-	Eigen::MatrixXd mCoulomb = vCoulomb.asDiagonal(); // initial diagonal part, does not play well with direct addition to below
-	mCoulomb -= internalFactor * vCoulomb * vCoulomb.transpose(); // include off-diagonal part
-	
+	Eigen::MatrixXd mCoulomb = vCoulomb.asDiagonal();
+	mCoulomb.noalias() -= internalFactor * vCoulomb * vCoulomb.transpose(); // attempted .noalias() optimization
+
 	return mCoulomb;
 }
 
@@ -440,10 +441,10 @@ Eigen::MatrixXd Loss::mCoulomb(double xi, double alpha, double parTerm, double L
 Eigen::MatrixXd Loss::ImChi(double dimRPA, Eigen::MatrixXcd& mChi0, Eigen::MatrixXd& mCoulomb)
 {
 	const int size = mChi0.rows(); // either matrix can be used here for reference
-	Eigen::MatrixXcd mRPA = Eigen::MatrixXcd::Identity(size, size) - dimRPA * (mChi0 * mCoulomb); // RPA matrix
+	auto mRPA = Eigen::MatrixXcd::Identity(size, size) - dimRPA * (mChi0 * mCoulomb); // RPA matrix
 
-	// this translates to the linear algebra problem mRPA*mChi = mChi0, which Eigen then solves
-	Eigen::MatrixXcd mChi = mRPA.partialPivLu().solve(mChi0);
+	// this tells Eigen to solve the linear algebra problem mRPA*mChi = mChi0 for mChi
+	Eigen::MatrixXcd mChi = mRPA.partialPivLu().solve(mChi0); // needs an explicit MatrixXcd cast for .imag() call on return
 
 	return mChi.imag(); // return only the imaginary part, which is a real-valued <double>
 }
@@ -457,17 +458,17 @@ double Loss::parityLoss(double q, double qs, double xi, double eps, double alpha
 
 	// build mChi0
 	Eigen::VectorXd mQlist = (L / Ls) * Qlist; // mChi0 takes scaled wavevectors, but same p2iList map
-	Eigen::MatrixXcd mChi0 = Loss::mChi0(qs, w, delta, mQlist, Ls, parity);
+	auto mChi0 = Loss::mChi0(qs, w, delta, mQlist, Ls, parity);
 
 	// build vCoulomb
-	Eigen::VectorXd vCoulomb = Loss::vCoulomb(xi, Qlist, parity);
+	auto vCoulomb = Loss::vCoulomb(xi, Qlist, parity);
 
 	// build mCoulomb
 	double parTerm = (1.0 - pow(-1.0, parity) * expTerm) / (1.0 - pow(1.0, parity) * alpha * expTerm); // parity-dependent Coulomb term
-	Eigen::MatrixXd mCoulomb = Loss::mCoulomb(xi, alpha, parTerm, L, vCoulomb);
+	auto mCoulomb = Loss::mCoulomb(xi, alpha, parTerm, L, vCoulomb);
 
 	// build ImChi
-	Eigen::MatrixXd ImChi = Loss::ImChi(dimRPA, mChi0, mCoulomb);
+	auto ImChi = Loss::ImChi(dimRPA, mChi0, mCoulomb);
 
 
 	double product = vCoulomb.transpose() * ImChi * vCoulomb; // sum over imChi converted to matrix product
