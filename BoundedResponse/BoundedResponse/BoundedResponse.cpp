@@ -76,12 +76,17 @@ int main()
     //test << 1, 2, 3, 4;
 
     // test of loss(), using optimized mChi0() (previously, mChi0New) --- old implementation is now mChi0Old()
-    std::cout << "The result: ";
-    std::cout << g.loss(0.05, 0.01, 1., 10., 7., 3., 5., 1.1, 0.1, 100, 5, 1.);
+    std::cout << "\nThe result: ";
+    std::cout << g.loss(0.05, 0.01, 1., 10., 7., 3., 5., 1.1, 0.1, 1000, 5, 1.);
 
     // Next:
-    //  1) connec to MKL backend
+    //  1) connect to MKL backend
     //  2) enable multi-threading (Mathematica seems to do this for linear algebra, even for compiled functions)
+
+    // closing preamble
+    char input;
+    std::cout << "\nEnter any input to close.\n";
+    std::cin >> input;
 
     return 0;
 }

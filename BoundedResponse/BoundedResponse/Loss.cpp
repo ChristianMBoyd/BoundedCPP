@@ -427,24 +427,26 @@ Eigen::VectorXd Loss::vCoulomb(double xi, Eigen::VectorXd& Qlist, const int pari
 }
 
 // the Coulomb matrix that enters the RPA equation at fixed parity (as set by Qlist and p2iList)
-Eigen::MatrixXd Loss::mCoulomb(double xi, double alpha, double parTerm, double L, Eigen::VectorXd& vCoulomb)
+Eigen::MatrixXcd Loss::mCoulomb(double xi, double alpha, double parTerm, double L, Eigen::VectorXd& vCoulomb)
 {
 	const double internalFactor = (xi / L) * (1 - alpha) * parTerm; // multiplies the non-diagonal part
 
 	Eigen::MatrixXd mCoulomb = vCoulomb.asDiagonal();
 	mCoulomb.noalias() -= internalFactor * vCoulomb * vCoulomb.transpose(); // attempted .noalias() optimization
 
-	return mCoulomb;
+	return mCoulomb.cast<std::complex<double>>(); // testing complex cast
 }
 
 // returns the (parity-dep) imaginary part of mChi (no signs yet) as a double-valued matrix, dimRPA INCLUDES 1/L!
-Eigen::MatrixXd Loss::ImChi(double dimRPA, Eigen::MatrixXcd& mChi0, Eigen::MatrixXd& mCoulomb)
+Eigen::MatrixXd Loss::ImChi(double dimRPA, Eigen::MatrixXcd& mChi0, Eigen::MatrixXcd& mCoulomb)
 {
 	const int size = mChi0.rows(); // either matrix can be used here for reference
-	auto mRPA = Eigen::MatrixXcd::Identity(size, size) - dimRPA * (mChi0 * mCoulomb); // RPA matrix
+	Eigen::MatrixXcd mRPA = Eigen::MatrixXcd::Identity(size, size) - std::complex<double>(dimRPA) * (mChi0 * mCoulomb); // RPA matrix
 
 	// this tells Eigen to solve the linear algebra problem mRPA*mChi = mChi0 for mChi
 	Eigen::MatrixXcd mChi = mRPA.partialPivLu().solve(mChi0); // needs an explicit MatrixXcd cast for .imag() call on return
+
+	// currently crashes above, mkl seems to not be linking -- good luck
 
 	return mChi.imag(); // return only the imaginary part, which is a real-valued <double>
 }

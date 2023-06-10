@@ -1,7 +1,9 @@
 #pragma once
 #include <cmath>
 #include <complex>
-#include <vector> // need variable-size arrays for below
+#include <vector> // CHECK IF DEPRECATED
+#include "mkl.h" // MKL backend for Eigen, check if this is needed here
+#define EIGEN_USE_MKL_ALL // test to use intel oneMKL subroutines in Eigen
 #include "Eigen/Dense" // need linear algebra tools
 
 class Loss
@@ -22,8 +24,8 @@ public:
 	Eigen::MatrixXcd mChi0OffDiag(double q, double w, double delta, Eigen::VectorXd& Qlist);
 	Eigen::MatrixXcd mChi0(double qs, double w, double delta, Eigen::VectorXd& Qlist, double Ls, const int parity);
 	Eigen::VectorXd vCoulomb(double xi, Eigen::VectorXd& Qlist, const int parity);
-	Eigen::MatrixXd mCoulomb(double xi, double alpha, double parTerm, double L, Eigen::VectorXd& vCoulomb);
-	Eigen::MatrixXd ImChi(double dimRPA, Eigen::MatrixXcd& mChi0, Eigen::MatrixXd& mCoulomb);
+	Eigen::MatrixXcd mCoulomb(double xi, double alpha, double parTerm, double L, Eigen::VectorXd& vCoulomb);
+	Eigen::MatrixXd ImChi(double dimRPA, Eigen::MatrixXcd& mChi0, Eigen::MatrixXcd& mCoulomb);
 	double parityLoss(double q, double qs, double xi, double eps, double alpha, double expTerm, double gTerm, double dimRPA,
 		double w, double delta, double L, double Ls, const int nMax, const int parity);
 	double loss(double qx, double qy, double mx, double mz, double ex, double ey, double ez, double w, double delta, double L,
