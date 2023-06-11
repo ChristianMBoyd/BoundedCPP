@@ -198,24 +198,6 @@ double Loss::LScale(double L, double mz)
 	return L * std::sqrt(mz); // real-valued root argument
 }
 
-// the unique "diagonal" values of mChi0 -- DEPRECATED
-Eigen::VectorXcd Loss::mChi0DiagList(double q, double w, double delta, Eigen::VectorXd& Qlist, double L)
-{
-	// Qlist passed by reference as per Eigen suggestions
-	const int size = Qlist.size();
-
-	Eigen::VectorXcd diagList(size);
-
-	int counter = 0;
-	while (counter < size)
-	{
-		diagList[counter] = L * sumPi0(q, w, delta, Qlist[counter], L);
-		counter++;
-	}
-
-	return diagList;
-}
-
 // the unique entries diagonal entries within mChi0 --- includes the "off-diagonal" contribution AND factor of (1/2)!
 Eigen::MatrixXcd Loss::mChi0Diag(double q, double w, double delta, Eigen::VectorXd& Qlist, double L, const int parity)
 {
@@ -244,32 +226,6 @@ Eigen::MatrixXcd Loss::mChi0Diag(double q, double w, double delta, Eigen::Vector
 	}
 
 	return diagVec.asDiagonal();
-}
-
-// a lower-triangular matrix holding the unique entries of the (symmetric) off-diagonal elements of mChi0 - DEPRECATED
-Eigen::MatrixXcd Loss::mChi0OffDiagList(double q, double w, double delta, Eigen::VectorXd& Qlist)
-{
-	const int size = Qlist.size();
-
-	Eigen::MatrixXcd offDiagList(size, size);
-
-	int n = 0; // inner loop
-	int m = 0; // outer loop
-
-	while (m < size)
-	{
-		n = 0; // reset for additional loops
-		while (n <= m)
-		{
-			// symmetric combination of out-of-plane wavevector arguments of Pi0
-			offDiagList(m, n) = Pi0(q, w, delta, (Qlist[m] + Qlist[n]) / 2, (Qlist[m] - Qlist[n]) / 2)
-				+ Pi0(q, w, delta, (Qlist[m] - Qlist[n]) / 2, (Qlist[m] + Qlist[n]) / 2);
-			n++;
-		}
-		m++;
-	}
-
-	return offDiagList;
 }
 
 // the unique off-diagonal entries, already symmetrized and with 0s on the diagonal
@@ -338,65 +294,6 @@ Eigen::MatrixXcd Loss::mChi0(double qs, double w, double delta, Eigen::VectorXd&
 			mChi0.topRightCorner(inner, inner).rowwise().reverse(); // counts from midpoint leftward and upward
 	}
 	
-	return mChi0;
-}
-
-// check if the Qlist entry is zero, requires same L (possibly scaled) fed into Qlist -- DEPRECATED
-bool Loss::zeroQ(double Q, double L)
-{
-
-	return (Q < pi / L); // concern over "Q == 0" check, instead the only value satisfying Q<pi/L is Q=0.
-}
-
-// the parity-dep (p2iList and Qlist) non-interacting density response matrix, all integral indices
-// (enumerated through positives by symmetry) -- DEPRECATED
-Eigen::MatrixXcd Loss::mChi0Old(double qs, double w, double delta, double Ls, const int nMax, Eigen::VectorXd& Qlist, Eigen::VectorXi& p2iList)
-{
-	const int size = p2iList.size(); // the size of mChi0 when including negative integral indices
-
-	// enumerate unique entries from Q inversion symmetry + mChi0 being symmetric in Qlist indices
-	Eigen::VectorXcd diagList = mChi0DiagList(qs, w, delta, Qlist, Ls); // pass scaled qs and Ls to sumPi0
-	Eigen::MatrixXcd offDiagList = mChi0OffDiagList(qs, w, delta, Qlist); // pass scaled qs to Pi0
-
-	// enumerate entries across all integral indices of mChi0
-	Eigen::MatrixXcd mChi0(size, size); // mChi0 matrix to be filled in
-	std::complex<double> offDiagVal; // holder for offDiagList(m,n) depending upon m<=n conditions
-	std::complex<double> diagVal; // holder for the "diagonal" contribution
-	int m = 0; // outer loop
-	int n = 0; // inner loop
-	while (m < size)
-	{
-		n = 0; // reset inner loop
-		while (n < size)
-		{
-			// "diagonal" part, sign not important
-			if (p2iList[n] == p2iList[m]) // Qlist and diagList are index by p2iList, not m or m directly
-			{
-				// if Qlist[n] = 0, need to be double-counted -- done by casting int -> complex<double> first
-				diagVal = (std::complex<double>(1.0 + 1.0 * zeroQ(Qlist[p2iList[n]], Ls))) * diagList[p2iList[n]];
-			}
-			else
-			{
-				diagVal = 0;
-			}
-
-			// off-diagonal part, entries stored in lower-triangular offDiagList
-			if (p2iList[n] > p2iList[m]) // offDiagList is indexed through p2iList, not n or m directly
-			{
-				offDiagVal = offDiagList(p2iList[n], p2iList[m]); // in this case, interchange order of (m,n)
-			}
-			else
-			{
-				offDiagVal = offDiagList(p2iList[m], p2iList[n]); // follows lower-triangular restriction, normal order
-			}
-
-			// overall factor of (1/2) -- CAUTION: requires 1.0 to avoid integer division (i.e., 1/2==0)
-			mChi0(m, n) = (std::complex<double>(1.0 / 2, 0.0)) * (diagVal - offDiagVal);
-			n++;
-		}
-		m++;
-	}
-
 	return mChi0;
 }
 

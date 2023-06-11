@@ -31,14 +31,9 @@ public:
 	double loss(double qx, double qy, double mx, double mz, double ex, double ey, double ez, double w, double delta, double L,
 		double cutoff, double Delta);
 
-	// OLD/DEPRECATED
+	// OLD/DEPRECATED --- kept if need index-gymnastics later
 	Eigen::VectorXi intList(const int parity, const int nMax);
 	Eigen::VectorXi posToIntList(const int parity, const int nMax);
-	Eigen::VectorXcd mChi0DiagList(double q, double w, double delta, Eigen::VectorXd& Qlist, double L);
-	Eigen::MatrixXcd mChi0OffDiagList(double q, double w, double delta, Eigen::VectorXd& Qlist);
-	bool zeroQ(double Q, double L);
-	Eigen::MatrixXcd mChi0Old(double qs, double w, double delta, double Ls, const int nMax, Eigen::VectorXd& Qlist,
-		Eigen::VectorXi& p2iList);
 
 
 	// consider putting internal functions into private

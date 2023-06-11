@@ -77,11 +77,13 @@ int main()
 
     // test of loss(), using optimized mChi0() (previously, mChi0New) --- old implementation is now mChi0Old()
     std::cout << "\nThe result: ";
-    std::cout << g.loss(0.05, 0.01, 1., 10., 7., 3., 5., 1.1, 0.1, 1000, 5, 1.);
+    std::cout << g.loss(0.05, 0.01, 1., 10., 7., 3., 5., 1.1, 0.1, 500, 5, 1.);
 
     // Next:
-    //  1) connect to MKL backend
-    //  2) enable multi-threading (Mathematica seems to do this for linear algebra, even for compiled functions)
+    //  2) while -> for loops for more direct parallelization
+    //  3) remove logical operations from purely mathematica operations
+    //      i.e., push if() and other statements out of calculation functions
+    //  4) implement CUDA
 
     // closing preamble
     char input;
