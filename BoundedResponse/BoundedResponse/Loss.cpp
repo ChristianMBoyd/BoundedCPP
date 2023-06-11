@@ -73,12 +73,14 @@ double Loss::xiScale(double qx, double qy, double ex, double ey, double ez)
 
 // a sum over a single Qn in Pi0Int across the integer indices enumerated by min and max
 std::complex<double> Loss::sumPi0Interval(double q, double w, double delta, double Qn, double L, const int min, const int max)
-{
-	std::complex<double> sum(0, 0); // placeholder for sum return, initialized to zero
+{	
+	std::complex<double> sum(0.0, 0.0); // initialize zero value of sum
 	const double waveFactor = pi / L; // convert integer indices into wavevectors
 	const int size = max - min + 1; // total number of integer indices to sum over, including start and end points.
 	double Qnp; // wavevector to be summed over
+	std::complex<double> val;
 
+	// left to be performed in serial mode for each thread calling Pi0Diag()
 	for (int counter = 0; counter < size; counter++) // loop to enumerate entries
 	{
 		Qnp = waveFactor * (counter + min); // starts at -inner, ends at +inner
@@ -201,6 +203,8 @@ Eigen::VectorXd Loss::Qlist(const double L, const int nMax, const bool evenPar, 
 
 	Eigen::VectorXd Qlist(tot); // placeholder list
 	const double dQ = pi / L; // wavevector spacing
+
+	#pragma omp parallel for // parallelization call
 	for (int counter = 0; counter < tot; counter++)
 	{
 		Qlist[counter] = dQ * (1 - evenPar + 2 * counter); // non-negative wavevector entries
@@ -225,6 +229,7 @@ Eigen::MatrixXcd Loss::mChi0Diag(double q, double w, double delta, Eigen::Vector
 	diagVec[0] = 0.5 * (diag - offDiag); // overall factor of (1/2), unrelated to edge case
 
 	// fill in the rest of the entries, no more edge cases to worry about
+	#pragma omp parallel for private(diag,offDiag)
 	for (int counter = 1; counter < size; counter++)
 	{
 		diag = L * sumPi0(q, w, delta, Qlist[counter], L); // sumPi0 has a 1/L scaling internally (may remove)
@@ -241,6 +246,7 @@ Eigen::MatrixXcd Loss::mChi0OffDiag(double q, double w, double delta, Eigen::Vec
 	const int size = Qlist.size();
 	Eigen::MatrixXcd offDiag = Eigen::MatrixXd::Constant(size, size, 0.0); // initialize zero matrix
 
+	#pragma omp parallel for
 	for (int m = 0; m < size; m++)
 	{
 		for (int n = 0; n < m; n++) // only filling in unique entries manually up to symmetry, excluding diagonal
@@ -275,13 +281,16 @@ Eigen::MatrixXcd Loss::mChi0(double qs, double w, double delta, Eigen::VectorXd&
 	const int small = large - evenPar; // dimensions of smaller side in the case of even parity, avoids double-counting diagonals
 
 	// filling in mChi0 from miniChi0
-	mChi0.bottomRightCorner(large, large) = miniChi0; // largest block
-	mChi0.bottomLeftCorner(large, small) =
-		miniChi0.rightCols(small).rowwise().reverse(); // counts from bottom middle leftward, ignoring center line
-	mChi0.topRightCorner(small, large) =
-		miniChi0.bottomRows(small).colwise().reverse(); // counts from right middle upward, ignoring center line
-	mChi0.topLeftCorner(small, small) =
-		mChi0.topRightCorner(small, large).rightCols(small).rowwise().reverse(); // counts from upper middle leftward
+	#pragma omp parallel
+	{
+		mChi0.bottomRightCorner(large, large) = miniChi0; // largest block
+		mChi0.bottomLeftCorner(large, small) =
+			miniChi0.rightCols(small).rowwise().reverse(); // counts from bottom middle leftward, ignoring center line
+		mChi0.topRightCorner(small, large) =
+			miniChi0.bottomRows(small).colwise().reverse(); // counts from right middle upward, ignoring center line
+		mChi0.topLeftCorner(small, small) =
+			mChi0.topRightCorner(small, large).rightCols(small).rowwise().reverse(); // counts from upper middle leftward
+	}
 
 	return mChi0;
 }
@@ -294,9 +303,12 @@ Eigen::VectorXd Loss::vCoulomb(double xi, Eigen::VectorXd& Qlist, const bool eve
 	Eigen::VectorXd fList(size); // forward counting list
 
 	const double xi2 = xi * xi; // just saving space below
+	double Qval; // Qlist[counter] holder for convenience
+
+	#pragma omp parallel for private(Qval)
 	for (int counter = 0;  counter < size; counter++)
 	{
-		double Qval = Qlist[counter];
+		Qval = Qlist[counter];
 		fList[counter] = 1.0 / (xi2 + Qval * Qval);
 	}
 
