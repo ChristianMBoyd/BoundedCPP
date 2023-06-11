@@ -12,6 +12,7 @@ std::complex<double> Loss::posRoot(std::complex<double> z)
 	return i * std::sqrt(-z); // i.e., std::sqrt() handles std::complex<double>, just wrong branch cut
 }
 
+// Consider: how to pull the logic out of this --- i.e., decide from Qlist which entries to compute, then push that work to GPU
 // builds the full 2D planar wavevector integral of Pi0
 std::complex<double> Loss::Pi0(double q, double w, double delta, double Qn, double Qnp)
 {
@@ -78,12 +79,10 @@ std::complex<double> Loss::sumPi0Interval(double q, double w, double delta, doub
 	const int size = max - min + 1; // total number of integer indices to sum over, including start and end points.
 	double Qnp; // wavevector to be summed over
 
-	int counter = 0;
-	while (counter < size) // loop to enumerate entries
+	for (int counter = 0; counter < size; counter++) // loop to enumerate entries
 	{
 		Qnp = waveFactor * (counter + min); // starts at -inner, ends at +inner
 		sum += (1 / L) * Pi0(q, w, delta, Qnp, Qnp + Qn); // Qn is the offset, Qnp is summed over
-		counter++;
 	}
 
 	return sum;
@@ -135,11 +134,9 @@ Eigen::VectorXi Loss::posList(const int parity, const int nMax)
 	const int tot = int(std::floor((nMax + 1) / 2)) + int(std::floor((evenMax + evenPar) / 2));
 
 	Eigen::VectorXi posList(tot); // placeholder list
-	int counter = 0;
-	while (counter < tot)
+	for(int counter = 0; counter < tot; counter++)
 	{
 		posList[counter] = 1 - evenPar + 2 * counter; // enumerate entries
-		counter++;
 	}
 
 	return posList;
@@ -170,11 +167,9 @@ Eigen::VectorXi Loss::posToIntList(const int parity, const int nMax)
 
 	Eigen::VectorXi fList(tot); // list to hold entries counting from 0 to tot
 
-	int counter = 0;
-	while (counter < tot) // fill in index positions of posList() vector
+	for (int counter = 0; counter < tot; counter++) // fill in index positions of posList() vector
 	{
 		fList[counter] = counter;
-		counter++;
 	}
 
 	// store reverse-order of fList, removing the double-counting of the Q=0 term in the case that the parity is even
@@ -198,6 +193,7 @@ double Loss::LScale(double L, double mz)
 	return L * std::sqrt(mz); // real-valued root argument
 }
 
+// Consider: separating out mChi0Diag for even/odd cases (remove logic), since these are explicitly called anyway based on overall parity
 // the unique entries diagonal entries within mChi0 --- includes the "off-diagonal" contribution AND factor of (1/2)!
 Eigen::MatrixXcd Loss::mChi0Diag(double q, double w, double delta, Eigen::VectorXd& Qlist, double L, const int parity)
 {
@@ -207,22 +203,22 @@ Eigen::MatrixXcd Loss::mChi0Diag(double q, double w, double delta, Eigen::Vector
 	std::complex<double> diag; // sumPi0 innput
 	std::complex<double> offDiag; // bare Pi0 input
 
-	int counter = 0;
+	int counterVal = 0;
 
 	if (evenQ(parity)) // edge case if Qlist[0] == 0
 	{
-		diag = 2 * L * sumPi0(q, w, delta, Qlist[counter], L); // "diagonal" part double-counted for Qlist[0] == 0
-		offDiag = Pi0(q, w, delta, Qlist[counter], 0) + Pi0(q, w, delta, 0, Qlist[counter]); // off-diag NOT double-counted
-		diagVec[counter] = 0.5 * (diag - offDiag); // overall factor of (1/2), unrelated to edge case
-		counter++; // skip this in following loop if encountered
+		diag = 2 * L * sumPi0(q, w, delta, 0, L); // "diagonal" part double-counted for Qlist[0] == 0
+		offDiag = Pi0(q, w, delta, 0, 0) + Pi0(q, w, delta, 0, 0); // off-diag NOT double-counted
+		diagVec[0] = 0.5 * (diag - offDiag); // overall factor of (1/2), unrelated to edge case
+		counterVal++; // skip this in following loop if encountered
 	}
 
-	while (counter < size)
+	// fill in rest of entries from above
+	for (int counter = counterVal; counter < size; counter++)
 	{
 		diag = L * sumPi0(q, w, delta, Qlist[counter], L); // sumPi0 has a 1/L scaling internally (may remove)
 		offDiag = Pi0(q, w, delta, Qlist[counter], 0) + Pi0(q, w, delta, 0, Qlist[counter]); // still needs the symmetrized result
 		diagVec[counter] = 0.5 * (diag - offDiag); // includes overall factor of (1/2)!
-		counter++;
 	}
 
 	return diagVec.asDiagonal();
@@ -234,18 +230,13 @@ Eigen::MatrixXcd Loss::mChi0OffDiag(double q, double w, double delta, Eigen::Vec
 	const int size = Qlist.size();
 	Eigen::MatrixXcd offDiag = Eigen::MatrixXd::Constant(size, size, 0.0); // initialize zero matrix
 
-	int m = 0; // outer
-	int n = 0; // inner
-	while (m < size)
+	for (int m = 0; m < size; m++)
 	{
-		n = 0; // reset before new loop
-		while (n < m) // only filling in unique entries manually up to symmetry, excluding diagonal
+		for (int n = 0; n < m; n++) // only filling in unique entries manually up to symmetry, excluding diagonal
 		{
 			offDiag(m, n) = 0.5 * (Pi0(q, w, delta, (Qlist[m] + Qlist[n]) / 2, (Qlist[m] - Qlist[n]) / 2)
 				+ Pi0(q, w, delta, (Qlist[m] - Qlist[n]) / 2, (Qlist[m] + Qlist[n]) / 2)); // symmetrized result, includes (1/2)!
-			n++;
 		}
-		m++;
 	}
 
 	// fill in zero entries with symmetrized values, leaving 0s along diagonal
@@ -255,6 +246,7 @@ Eigen::MatrixXcd Loss::mChi0OffDiag(double q, double w, double delta, Eigen::Vec
 	return init + offDiag; // combine offDiag with its tranpose, maintaining 0s on the diagonal
 }
 
+// Consider: explicit calls to even/odd parity cases since will be done anyway --- remove logic
 // mChi0 built from smaller pre-existing matrices holding only the unique entries
 Eigen::MatrixXcd Loss::mChi0(double qs, double w, double delta, Eigen::VectorXd& Qlist, double Ls, const int parity)
 {
@@ -297,6 +289,7 @@ Eigen::MatrixXcd Loss::mChi0(double qs, double w, double delta, Eigen::VectorXd&
 	return mChi0;
 }
 
+// Consider: separating even/odd (pushing logic outside this function) since will be explicitly called anyway
 // the parity-dep (through Qlist and p2iList) Coulomb vector used to evaluate the sum over ImChi
 Eigen::VectorXd Loss::vCoulomb(double xi, Eigen::VectorXd& Qlist, const int parity)
 {
@@ -304,12 +297,11 @@ Eigen::VectorXd Loss::vCoulomb(double xi, Eigen::VectorXd& Qlist, const int pari
 
 	Eigen::VectorXd fList(size); // forward counting list
 
-	int counter = 0;
 	const double xi2 = xi * xi; // just saving space below
-	while (counter < size)
+	for (int counter = 0;  counter < size; counter++)
 	{
-		fList[counter] = 1.0 / (xi2 + pow(Qlist[counter], 2));
-		counter++;
+		double Qval = Qlist[counter];
+		fList[counter] = 1.0 / (xi2 + Qval * Qval);
 	}
 
 	const bool evenPar = evenQ(parity);
