@@ -124,7 +124,7 @@ bool Loss::evenQ(int val)
 	}
 }
 
-// enumeration of the parity-restricted, positive wavevectors for a given parity and nMax
+// enumeration of the parity-restricted, positive wavevectors for a given parity and nMax -- DEPRECATED
 Eigen::VectorXi Loss::posList(const int parity, const int nMax)
 {
 	const bool evenPar = evenQ(parity);
@@ -193,9 +193,25 @@ double Loss::LScale(double L, double mz)
 	return L * std::sqrt(mz); // real-valued root argument
 }
 
-// Consider: separating out mChi0Diag for even/odd cases (remove logic), since these are explicitly called anyway based on overall parity
-// the unique entries diagonal entries within mChi0 --- includes the "off-diagonal" contribution AND factor of (1/2)!
-Eigen::MatrixXcd Loss::mChi0Diag(double q, double w, double delta, Eigen::VectorXd& Qlist, double L, const int parity)
+// non-negative wavevector list for even OR odd parity --- parity logic is pushed out into function calls via evenPar and evenMax
+Eigen::VectorXd Loss::Qlist(const double L, const int nMax, const bool evenPar, const bool evenMax)
+{
+	// size of parity-restricted, positive entries
+	const int tot = int(std::floor((nMax + 1) / 2)) + int(std::floor((evenMax + evenPar) / 2));
+
+	Eigen::VectorXd Qlist(tot); // placeholder list
+	const double dQ = pi / L; // wavevector spacing
+	for (int counter = 0; counter < tot; counter++)
+	{
+		Qlist[counter] = dQ * (1 - evenPar + 2 * counter); // non-negative wavevector entries
+	}
+
+	return Qlist;
+}
+
+// the unique entries diagonal entries within mChi0
+//	additionall handles the "off-diagonal" contribution, factor of (1/2), *and* parity dependence via (external) evenPar
+Eigen::MatrixXcd Loss::mChi0Diag(double q, double w, double delta, Eigen::VectorXd& Qlist, double L, const bool evenPar)
 {
 	const int size = Qlist.size(); // only explicitly calculating the smaller, parity-restricted positive entries
 	Eigen::VectorXcd diagVec(size); // holder for diagonal entries
@@ -203,18 +219,13 @@ Eigen::MatrixXcd Loss::mChi0Diag(double q, double w, double delta, Eigen::Vector
 	std::complex<double> diag; // sumPi0 innput
 	std::complex<double> offDiag; // bare Pi0 input
 
-	int counterVal = 0;
+	// mChi0Diag[0] has an edge case for even parity, the evenPar term handles this below
+	diag = (1+evenPar) * L * sumPi0(q, w, delta, Qlist[0], L); // "diagonal" part double-counted for Qlist[0] == 0
+	offDiag = Pi0(q, w, delta, Qlist[0], 0) + Pi0(q, w, delta, 0, Qlist[0]); // off-diag NOT double-counted
+	diagVec[0] = 0.5 * (diag - offDiag); // overall factor of (1/2), unrelated to edge case
 
-	if (evenQ(parity)) // edge case if Qlist[0] == 0
-	{
-		diag = 2 * L * sumPi0(q, w, delta, 0, L); // "diagonal" part double-counted for Qlist[0] == 0
-		offDiag = Pi0(q, w, delta, 0, 0) + Pi0(q, w, delta, 0, 0); // off-diag NOT double-counted
-		diagVec[0] = 0.5 * (diag - offDiag); // overall factor of (1/2), unrelated to edge case
-		counterVal++; // skip this in following loop if encountered
-	}
-
-	// fill in rest of entries from above
-	for (int counter = counterVal; counter < size; counter++)
+	// fill in the rest of the entries, no more edge cases to worry about
+	for (int counter = 1; counter < size; counter++)
 	{
 		diag = L * sumPi0(q, w, delta, Qlist[counter], L); // sumPi0 has a 1/L scaling internally (may remove)
 		offDiag = Pi0(q, w, delta, Qlist[counter], 0) + Pi0(q, w, delta, 0, Qlist[counter]); // still needs the symmetrized result
@@ -248,50 +259,35 @@ Eigen::MatrixXcd Loss::mChi0OffDiag(double q, double w, double delta, Eigen::Vec
 
 // Consider: explicit calls to even/odd parity cases since will be done anyway --- remove logic
 // mChi0 built from smaller pre-existing matrices holding only the unique entries
-Eigen::MatrixXcd Loss::mChi0(double qs, double w, double delta, Eigen::VectorXd& Qlist, double Ls, const int parity)
-{
-	// enumerate minimal entries
-	auto diag = mChi0Diag(qs, w, delta, Qlist, Ls, parity);
+Eigen::MatrixXcd Loss::mChi0(double qs, double w, double delta, Eigen::VectorXd& Qlist, double Ls, const bool evenPar)
+	{
+		// enumerate minimal entries
+	auto diag = mChi0Diag(qs, w, delta, Qlist, Ls, evenPar);
 	auto offDiag = mChi0OffDiag(qs, w, delta, Qlist);
 
 	auto miniChi0 = diag - offDiag; // unique (by symmetry) entries, makes up bottom-right corner of full mChi0
 
-	// determine total size -- note: need parity call anyway for mChi0Diag()
-	bool evenPar = evenQ(parity);
+	// determine total size, parity logic off-loaded through evenPar
 	const int size = 2 * Qlist.size() - evenPar; // spans all integral indices: avoid double-counting zero if even
 
-	Eigen::MatrixXcd mChi0(size, size); // full matrix
+	Eigen::MatrixXcd mChi0(size, size); // full matrix dimensions, parity-dependent via evenPar in size def
+	const int large = Qlist.size(); // dimensions of bottom-right block
+	const int small = large - evenPar; // dimensions of smaller side in the case of even parity, avoids double-counting diagonals
 
-	if (evenQ(parity)) // case of even matrix dimensions -- i.e., a middle row/column
-	{
-		const int large = Qlist.size(); // dimensions of largest unique bottom-right block
-		const int small = large - 1; // dimensions of smaller side from avoiding the center row/column
+	// filling in mChi0 from miniChi0
+	mChi0.bottomRightCorner(large, large) = miniChi0; // largest block
+	mChi0.bottomLeftCorner(large, small) =
+		miniChi0.rightCols(small).rowwise().reverse(); // counts from bottom middle leftward, ignoring center line
+	mChi0.topRightCorner(small, large) =
+		miniChi0.bottomRows(small).colwise().reverse(); // counts from right middle upward, ignoring center line
+	mChi0.topLeftCorner(small, small) =
+		mChi0.topRightCorner(small, large).rightCols(small).rowwise().reverse(); // counts from upper middle leftward
 
-		mChi0.bottomRightCorner(large, large) = miniChi0; // largest block
-		mChi0.bottomLeftCorner(large, small) =
-			miniChi0.rightCols(small).rowwise().reverse(); // counts from bottom middle leftward, ignoring center line
-		mChi0.topRightCorner(small, large) =
-			miniChi0.bottomRows(small).colwise().reverse(); // counts from right middle upward, ignoring center line
-		mChi0.topLeftCorner(small, small) =
-			mChi0.topRightCorner(small, large).rightCols(small).rowwise().reverse(); // counts from upper middle leftward
-	}
-	else // case of odd matrix dimensions -- i.e., decomposable into 4 equal size block matrices
-	{
-		const int inner = Qlist.size(); // length of smaller block matrices
-
-		mChi0.bottomRightCorner(inner, inner) = miniChi0; // all positive, unchanged
-		mChi0.bottomLeftCorner(inner, inner) = miniChi0.rowwise().reverse(); // counts from bottom middle leftward
-		mChi0.topRightCorner(inner, inner) = miniChi0.colwise().reverse(); // counts from the right-middle upward
-		mChi0.topLeftCorner(inner, inner) = 
-			mChi0.topRightCorner(inner, inner).rowwise().reverse(); // counts from midpoint leftward and upward
-	}
-	
 	return mChi0;
 }
 
-// Consider: separating even/odd (pushing logic outside this function) since will be explicitly called anyway
-// the parity-dep (through Qlist and p2iList) Coulomb vector used to evaluate the sum over ImChi
-Eigen::VectorXd Loss::vCoulomb(double xi, Eigen::VectorXd& Qlist, const int parity)
+// the Coulomb entries vector used to evaluate the sum over ImChi -- parity-dependence called externally through evenPar
+Eigen::VectorXd Loss::vCoulomb(double xi, Eigen::VectorXd& Qlist, const bool evenPar)
 {
 	const int size = Qlist.size(); // enumerating only the unique entries by symmetry
 
@@ -303,8 +299,6 @@ Eigen::VectorXd Loss::vCoulomb(double xi, Eigen::VectorXd& Qlist, const int pari
 		double Qval = Qlist[counter];
 		fList[counter] = 1.0 / (xi2 + Qval * Qval);
 	}
-
-	const bool evenPar = evenQ(parity);
 
 	// store reverse-order of fList, avoiding double-counting Q=0 term if even parity
 	Eigen::VectorXd rList = fList(Eigen::lastN(fList.size() - evenPar).reverse(), Eigen::all);
@@ -318,19 +312,20 @@ Eigen::VectorXd Loss::vCoulomb(double xi, Eigen::VectorXd& Qlist, const int pari
 // the Coulomb matrix that enters the RPA equation at fixed parity (as set by Qlist and p2iList)
 Eigen::MatrixXcd Loss::mCoulomb(double xi, double alpha, double parTerm, double L, Eigen::VectorXd& vCoulomb)
 {
-	const double internalFactor = (xi / L) * (1 - alpha) * parTerm; // multiplies the non-diagonal part
+	const double internalFactor = (xi / L) * (1 - alpha) * parTerm; // multiplies the non-diagonal part (i.e., result is *not* proportional)
 
 	Eigen::MatrixXd mCoulomb = vCoulomb.asDiagonal();
 	mCoulomb.noalias() -= internalFactor * vCoulomb * vCoulomb.transpose(); // attempted .noalias() optimization
 
-	return mCoulomb.cast<std::complex<double>>(); // testing complex cast
+	return mCoulomb; // slow, but Eigen->MKL call may require this double->std::complex<double> cast
 }
 
 // returns the (parity-dep) imaginary part of mChi (no signs yet) as a double-valued matrix, dimRPA INCLUDES 1/L!
 Eigen::MatrixXd Loss::ImChi(double dimRPA, Eigen::MatrixXcd& mChi0, Eigen::MatrixXcd& mCoulomb)
 {
 	const int size = mChi0.rows(); // either matrix can be used here for reference
-	Eigen::MatrixXcd mRPA = Eigen::MatrixXcd::Identity(size, size) - std::complex<double>(dimRPA) * (mChi0 * mCoulomb); // RPA matrix
+	// RPA matrix acting on mChi, double->std::complex<double> cast appears to be requied for Eigen->MKL optimization
+	Eigen::MatrixXcd mRPA = Eigen::MatrixXcd::Identity(size, size) - std::complex<double>(dimRPA) * (mChi0 * mCoulomb);
 
 	// this tells Eigen to solve the linear algebra problem mRPA*mChi = mChi0 for mChi
 	Eigen::MatrixXcd mChi = mRPA.partialPivLu().solve(mChi0); // needs an explicit MatrixXcd cast for .imag() call on return
@@ -344,18 +339,22 @@ Eigen::MatrixXd Loss::ImChi(double dimRPA, Eigen::MatrixXcd& mChi0, Eigen::Matri
 double Loss::parityLoss(double q, double qs, double xi, double eps, double alpha, double expTerm, double gTerm, double dimRPA,
 	double w, double delta,	double L, double Ls, const int nMax, const int parity)
 {
-	// enumerate parity-dependent wavevectors and maps from positive values to all integral values
-	Eigen::VectorXd Qlist = (pi / L) * posList(parity, nMax).cast<double>(); // unscaled positive wavevectors
+	// parity logic performed here, the remaining Loss:: functions are purely mathematical and call these values as integers
+	bool evenPar = evenQ(parity);
+	bool evenMax = evenQ(nMax);
+
+	// enumerate non-negative wavevector entries -- negative values calculated by symmetry
+	auto Qlist = Loss::Qlist(L, nMax, evenPar, evenMax);
 
 	// build mChi0
-	Eigen::VectorXd mQlist = (L / Ls) * Qlist; // mChi0 takes scaled wavevectors, but same p2iList map
-	auto mChi0 = Loss::mChi0(qs, w, delta, mQlist, Ls, parity);
+	Eigen::VectorXd mChi0Qlist = (L / Ls) * Qlist; // mChi0 takes scaled wavevectors
+	auto mChi0 = Loss::mChi0(qs, w, delta, mChi0Qlist, Ls, evenPar);
 
 	// build vCoulomb
-	auto vCoulomb = Loss::vCoulomb(xi, Qlist, parity);
+	auto vCoulomb = Loss::vCoulomb(xi, Qlist, evenPar);
 
 	// build mCoulomb
-	double parTerm = (1.0 - pow(-1.0, parity) * expTerm) / (1.0 - pow(1.0, parity) * alpha * expTerm); // parity-dependent Coulomb term
+	double parTerm = (1.0 - pow(-1.0, parity) * expTerm) / (1.0 - pow(1.0, parity) * alpha * expTerm); // passed to mCoulomb
 	auto mCoulomb = Loss::mCoulomb(xi, alpha, parTerm, L, vCoulomb);
 
 	// build ImChi
