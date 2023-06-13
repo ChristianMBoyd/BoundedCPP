@@ -61,6 +61,40 @@ std::complex<double> Loss::Pi0(double q, double w, double delta, double Qn, doub
 	return nTerm - npTerm;
 }
 
+// the Qn part of Pi0, without the logic check
+std::complex<double> Loss::Pi0Qn(double q, double w, double delta, double Qn, double Qnp)
+{
+	// reused terms
+	const double qq = q * q;
+	const double QQ = Qn * Qn;
+
+	// overall scale
+	const double prefactor = 1 / (8 * pi * qq);
+
+	// complex expressions
+	std::complex<double> wVal = w + i * delta - (qq + Qnp * Qnp - QQ);
+	std::complex<double> rootArg = wVal * wVal - 4 * qq * (1 - QQ);
+
+	return prefactor * (wVal - posRoot(rootArg)); // total integral result
+}
+
+// the Qnp part of Pi0, without the logic check (or overall sign)
+std::complex<double> Loss::Pi0Qnp(double q, double w, double delta, double Qn, double Qnp)
+{
+	// reused terms
+	const double qq = q * q;
+	const double QQ = Qnp * Qnp;
+
+	// overall scale
+	const double prefactor = 1 / (8 * pi * qq);
+
+	// complex expressions
+	std::complex<double> wVal = w + i * delta - (-qq + QQ - Qn * Qn);
+	std::complex<double> rootArg = wVal * wVal - 4 * qq * (1 - QQ);
+
+	return prefactor * (wVal - posRoot(rootArg)); // total integral result
+}
+
 // the effective planar wavevector as seen within the dielectric system
 double Loss::xiScale(double qx, double qy, double ex, double ey, double ez)
 {
@@ -90,11 +124,47 @@ std::complex<double> Loss::sumPi0Interval(double q, double w, double delta, doub
 	return sum;
 }
 
+// unrestricted sum over the Qn part of Pi0(dummy, dummy+input), where dummy spans the integral enumerated) wavevectors [min,max]
+std::complex<double> Loss::sumPi0QnInterval(double q, double w, double delta, double Qn, double L, const int min, const int max)
+{
+	std::complex<double> sum(0.0, 0.0); // initialize zero value of sum
+	const double waveFactor = pi / L; // convert integer indices into wavevectors
+	const int size = max - min + 1; // total number of integer indices to sum over, including start and end points.
+	double Qnp; // wavevector to be summed over
+	std::complex<double> val;
+
+	for (int counter = 0; counter < size; counter++) // loop to enumerate entries
+	{
+		Qnp = waveFactor * (counter + min); // starts at -inner, ends at +inner
+		sum += (1 / L) * Pi0Qn(q, w, delta, Qnp, Qnp + Qn); // Qn is the input, Qnp is summed over
+	}
+
+	return sum;
+}
+
+// sum over the Qnp part of Pi0(dummy, dummy+input) where dummy spans the min/max (integral enumerated) wavevectors
+std::complex<double> Loss::sumPi0QnpInterval(double q, double w, double delta, double Qn, double L, const int min, const int max)
+{
+	std::complex<double> sum(0.0, 0.0); // initialize zero value of sum
+	const double waveFactor = pi / L; // convert integer indices into wavevectors
+	const int size = max - min + 1; // total number of integer indices to sum over, including start and end points.
+	double Qnp; // wavevector to be summed over
+	std::complex<double> val;
+
+	for (int counter = 0; counter < size; counter++) // loop to enumerate entries
+	{
+		Qnp = waveFactor * (counter + min); // starts at -inner, ends at +inner
+		sum += (1 / L) * Pi0Qnp(q, w, delta, Qnp, Qnp + Qn); // Qn is the input, Qnp is summed over
+	}
+
+	return sum;
+}
+
 // the internal sum that contributes to the diagonal part of Pi0, built using sumPi0Interval
 std::complex<double> Loss::sumPi0(double q, double w, double delta, double Qn, double L)
 {
-	// integer indices within (-inner, inner) enumerate wavevectors that always have non-zero entries
-	const int inner = int(std::floor(L / pi)); // this will never exceed O(10^5)
+	// integer indices within (-inner, inner) enumerate wavevectors that always have non-zero Qn entries
+	const int inner = int(std::floor(L / pi));
 
 	std::complex<double> sum = sumPi0Interval(q, w, delta, Qn, L, -inner, inner); // sum from -inner to inner integer indices
 
@@ -105,6 +175,22 @@ std::complex<double> Loss::sumPi0(double q, double w, double delta, double Qn, d
 	sum += sumPi0Interval(q, w, delta, Qn, L, min, max); // sum over this secondary range
 
 	return sum;
+}
+
+
+// the internal sum that contributes to the diagonal part of Pi0, built using sumPi0Interval
+std::complex<double> Loss::sumPi0New(double q, double w, double delta, double Qn, double L)
+{
+	// integer indices within (-inner, inner) enumerate the non-zero Qn entries
+	const int inner = int(std::floor(L / pi));
+	std::complex<double> sumQn = sumPi0QnInterval(q, w, delta, Qn, L, -inner, inner);
+
+	// range of non-zero entries where (Qn + Qnp) is within (-1,1) -- the non-zero Qnp entries
+	const int min = int(std::ceil(-(Qn + 1) * L / pi));
+	const int max = int(std::floor((1 - Qn) * L / pi));
+	std::complex<double> sumQnp = sumPi0QnpInterval(q, w, delta, Qn, L, min, max);
+
+	return sumQn - sumQnp;
 }
 
 // consistent nMax function for use based off input parameters cutoff and L
@@ -213,8 +299,8 @@ Eigen::VectorXd Loss::Qlist(const double L, const int nMax, const bool evenPar, 
 	return Qlist;
 }
 
-// the unique entries diagonal entries within mChi0
-//	additionall handles the "off-diagonal" contribution, factor of (1/2), *and* parity dependence via (external) evenPar
+// the diagonal entries of mChi0
+//	additionally handles the "off-diagonal" contribution, factor of (1/2), *and* parity dependence via (external) evenPar
 Eigen::MatrixXcd Loss::mChi0Diag(double q, double w, double delta, Eigen::VectorXd& Qlist, double L, const bool evenPar)
 {
 	const int size = Qlist.size(); // only explicitly calculating the smaller, parity-restricted positive entries
@@ -234,6 +320,48 @@ Eigen::MatrixXcd Loss::mChi0Diag(double q, double w, double delta, Eigen::Vector
 	{
 		diag = L * sumPi0(q, w, delta, Qlist[counter], L); // sumPi0 has a 1/L scaling internally (may remove)
 		offDiag = Pi0(q, w, delta, Qlist[counter], 0) + Pi0(q, w, delta, 0, Qlist[counter]); // still needs the symmetrized result
+		diagVec[counter] = 0.5 * (diag - offDiag); // includes overall factor of (1/2)!
+	}
+
+	return diagVec.asDiagonal();
+}
+
+//  the diagonal entries of mChi0
+//	additionally handles the "off-diagonal" contribution, factor of (1/2), *and* parity dependence via (external) evenPar
+Eigen::MatrixXcd Loss::mChi0DiagNew(double q, double w, double delta, Eigen::VectorXd& Qlist, double L, const bool evenPar)
+{
+	const int size = Qlist.size(); // only explicitly calculating the smaller, parity-restricted positive entries
+	Eigen::VectorXcd diagVec(size); // holder for diagonal entries
+
+	std::complex<double> diag; // sumPi0 innput
+	std::complex<double> offDiag; // bare Pi0 input
+
+	// mChi0Diag[0] has an edge case for even parity, the evenPar term handles this below
+	diag = (1 + evenPar) * L * sumPi0New(q, w, delta, Qlist[0], L); // "diagonal" part double-counted for Qlist[0] == 0
+	offDiag = Pi0Qn(q, w, delta, Qlist[0], 0) + Pi0Qn(q, w, delta, 0, Qlist[0])
+		- Pi0Qnp(q, w, delta, 0, Qlist[0]) - Pi0Qnp(q, w, delta, Qlist[0], 0); // off-diag NOT double-counted
+	diagVec[0] = 0.5 * (diag - offDiag); // overall factor of (1/2), unrelated to edge case
+
+	// cutoff when the additional "off-diagonal" terms don't contribute
+	int cutoff = int(std::ceil(((L/pi) - 1 + evenPar)/2));
+
+	// speeds up debug, was previously un-noticeable in release
+	#pragma omp parallel for private(diag,offDiag)
+	for (int counter = 1; counter < cutoff; counter++) // loop when all contributions are non-zero
+	{
+		diag = L * sumPi0New(q, w, delta, Qlist[counter], L); // sumPi0 has a 1/L scaling internally (may remove)
+		offDiag = Pi0Qn(q, w, delta, 0, Qlist[counter]) + Pi0Qn(q, w, delta, Qlist[counter], 0)
+			- Pi0Qnp(q, w, delta, Qlist[counter], 0) - Pi0Qnp(q, w, delta, 0, Qlist[counter]); // all contribute across this range
+		diagVec[counter] = 0.5 * (diag - offDiag); // includes overall factor of (1/2)!
+	}
+
+	// speeds up debug, was previously un-noticeable in release
+	#pragma omp parallel for private(diag,offDiag)
+	for (int counter = cutoff; counter < size; counter++) // loop when the additional "off-diagonal" terms vanish
+	{
+		diag = L * sumPi0New(q, w, delta, Qlist[counter], L); // sumPi0 has a 1/L scaling internally (may remove)
+		// this "off-diag" term always contributes
+		offDiag = Pi0Qn(q, w, delta, 0, Qlist[counter]) - Pi0Qnp(q, w, delta, Qlist[counter], 0);
 		diagVec[counter] = 0.5 * (diag - offDiag); // includes overall factor of (1/2)!
 	}
 
@@ -263,11 +391,10 @@ Eigen::MatrixXcd Loss::mChi0OffDiag(double q, double w, double delta, Eigen::Vec
 	return init + offDiag; // combine offDiag with its tranpose, maintaining 0s on the diagonal
 }
 
-// Consider: explicit calls to even/odd parity cases since will be done anyway --- remove logic
 // mChi0 built from smaller pre-existing matrices holding only the unique entries
 Eigen::MatrixXcd Loss::mChi0(double qs, double w, double delta, Eigen::VectorXd& Qlist, double Ls, const bool evenPar)
 	{
-		// enumerate minimal entries
+	// enumerate minimal entries
 	auto diag = mChi0Diag(qs, w, delta, Qlist, Ls, evenPar);
 	auto offDiag = mChi0OffDiag(qs, w, delta, Qlist);
 

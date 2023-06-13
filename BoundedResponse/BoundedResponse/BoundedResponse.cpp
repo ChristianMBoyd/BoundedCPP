@@ -10,17 +10,28 @@ int main()
     Loss g;
 
     // test of loss() with significant input anisotropy for comparison with Mathematica
-    std::cout << "\nThe result: ";
-    std::cout << g.loss(0.05, 0.01, 1., 10., 7., 3., 5., 1.1, 0.1, 1000, 5, 1.);
+    //std::cout << "\nThe result: ";
+    //std::cout << g.loss(0.05, 0.01, 1., 10., 7., 3., 5., 1.1, 0.1, 1000, 5, 1.);
 
-    // Note: manual omp calls seem to have had little effect on the release build, but debug and debugging the release are quicker
-    //      i.e., likely that the compiler has already optimized the for loops
+    // test of mChi0DiagNew()
+    double q = 0.1, w = 1.1, delta = 0.1, Qn = 1.8, Qnp = 0.01, L = 10, cutoff = 5;
+    bool evenPar = false;
+    int nMax = g.nMax(cutoff, L);
+    bool evenMax = g.evenQ(nMax);
+    Eigen::VectorXd Qlist = g.Qlist(L, nMax, evenPar, evenMax);
+    std::cout << "\n The result from mChi0Diag(): " << g.mChi0Diag(q, w, delta, Qlist, L, evenPar).diagonal();
+    std::cout << "\n The result from mChi0DiagNew(): " << g.mChi0DiagNew(q, w, delta, Qlist, L, evenPar).diagonal();
 
     // To do:
-    //  1) Enumerate only the non-zero entries BEFORE calling Pi0
-    //  2) Then, pull |Qn|,|Qnp|<1 logic out of Pi0 and call specific parts
-    //      i.e., one matrix is built from the Qn argument, the other from Qnp, then they're combined
-    //  3) Make a second project for CUDA implementation for backend
+    //  1) Double-check mChi0Diag() was implemented correctly, then move on
+    //  2) Optimize mChi0OffDiag() by only calculating the non-zero entries of Pi0Qn() and Pi0Qnp()
+    //      Note: no more logic checks, compare to previous cases first
+    //  3) Check Eigen documentation again to optimize input/return types
+
+    //  Next:
+    //  1) Before CUDA, do Mathematica tests on ParallelTable vs. Table
+    //      i.e., is it better to parallelize the spectrum or the calculation
+    //  2) Make a second project for CUDA implementation for backend
 
     // closing preamble, allows output code to hang for comparison/inspection in release
     char input;
