@@ -1,5 +1,4 @@
 // BoundedResponse.cpp : This file contains the 'main' function. Program execution begins and ends there.
-//
 
 #include <iostream>
 #include "Loss.h"
@@ -10,23 +9,26 @@ int main()
     Loss g;
 
     // test of loss() with significant input anisotropy for comparison with Mathematica
-    //std::cout << "\nThe result: ";
-    //std::cout << g.loss(0.05, 0.01, 1., 10., 7., 3., 5., 1.1, 0.1, 1000, 5, 1.);
+    std::cout << "\nThe result: ";
+    std::cout << g.loss(0.001, 0.001, 1., 100., 1., 3., 5., 0.1, 0.1, 500, 5, 1.);
 
-    // test of mChi0DiagNew()
-    double q = 0.1, w = 1.1, delta = 0.1, Qn = 1.8, Qnp = 0.01, L = 10, cutoff = 5;
-    bool evenPar = false;
-    int nMax = g.nMax(cutoff, L);
-    bool evenMax = g.evenQ(nMax);
+    // parametric tests of different mChi0 implementations --- seem to agree to double precision
+    /*double q = 0.001, w = 0.1, delta = 0.1, L = 500, cutoff = 5;
+    const bool evenPar = true;
+    const int nMax = g.nMax(cutoff, L);
+    const bool evenMax = g.evenQ(nMax);
     Eigen::VectorXd Qlist = g.Qlist(L, nMax, evenPar, evenMax);
-    std::cout << "\n The result from mChi0Diag(): " << g.mChi0Diag(q, w, delta, Qlist, L, evenPar).diagonal();
-    std::cout << "\n The result from mChi0DiagNew(): " << g.mChi0DiagNew(q, w, delta, Qlist, L, evenPar).diagonal();
+    Eigen::MatrixXcd oldM = g.mChi0DiagOld(q, w, delta, Qlist,L,evenPar);
+    Eigen::MatrixXcd newM = g.mChi0Diag(q, w, delta, Qlist, L, evenPar);
+    Eigen::MatrixXcd diff = (oldM - newM).diagonal();
+    std::cout << "The sum of differences is:\n";
+    std::cout << diff.sum();*/
 
     // To do:
-    //  1) Double-check mChi0Diag() was implemented correctly, then move on
-    //  2) Optimize mChi0OffDiag() by only calculating the non-zero entries of Pi0Qn() and Pi0Qnp()
-    //      Note: no more logic checks, compare to previous cases first
-    //  3) Check Eigen documentation again to optimize input/return types
+    //  1) Slight difference with Mathematica at small q and large mass/dielectric anisotropy
+    //  2) Check Eigen documentation again to optimize input/return types
+    //  3) Go through and correct *OR* try to understand better "auto" usage
+    //      i.e., likely remove auto calls on Eigen objects
 
     //  Next:
     //  1) Before CUDA, do Mathematica tests on ParallelTable vs. Table

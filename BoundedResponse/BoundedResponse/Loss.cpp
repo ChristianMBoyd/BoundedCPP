@@ -136,7 +136,7 @@ std::complex<double> Loss::sumPi0QnInterval(double q, double w, double delta, do
 	for (int counter = 0; counter < size; counter++) // loop to enumerate entries
 	{
 		Qnp = waveFactor * (counter + min); // starts at -inner, ends at +inner
-		sum += (1 / L) * Pi0Qn(q, w, delta, Qnp, Qnp + Qn); // Qn is the input, Qnp is summed over
+		sum += Pi0Qn(q, w, delta, Qnp, Qnp + Qn); // Qn is the input, Qnp is summed over
 	}
 
 	return sum;
@@ -154,14 +154,14 @@ std::complex<double> Loss::sumPi0QnpInterval(double q, double w, double delta, d
 	for (int counter = 0; counter < size; counter++) // loop to enumerate entries
 	{
 		Qnp = waveFactor * (counter + min); // starts at -inner, ends at +inner
-		sum += (1 / L) * Pi0Qnp(q, w, delta, Qnp, Qnp + Qn); // Qn is the input, Qnp is summed over
+		sum +=  Pi0Qnp(q, w, delta, Qnp, Qnp + Qn); // Qn is the input, Qnp is summed over
 	}
 
 	return sum;
 }
 
 // the internal sum that contributes to the diagonal part of Pi0, built using sumPi0Interval
-std::complex<double> Loss::sumPi0(double q, double w, double delta, double Qn, double L)
+std::complex<double> Loss::sumPi0Old(double q, double w, double delta, double Qn, double L)
 {
 	// integer indices within (-inner, inner) enumerate wavevectors that always have non-zero Qn entries
 	const int inner = int(std::floor(L / pi));
@@ -178,8 +178,8 @@ std::complex<double> Loss::sumPi0(double q, double w, double delta, double Qn, d
 }
 
 
-// the internal sum that contributes to the diagonal part of Pi0, built using sumPi0Interval
-std::complex<double> Loss::sumPi0New(double q, double w, double delta, double Qn, double L)
+// the internal sum that contributes to the diagonal part of Pi0, built using sumPi0QnInterval and sumPi0QnpInterval
+std::complex<double> Loss::sumPi0(double q, double w, double delta, double Qn, double L)
 {
 	// integer indices within (-inner, inner) enumerate the non-zero Qn entries
 	const int inner = int(std::floor(L / pi));
@@ -299,7 +299,33 @@ Eigen::VectorXd Loss::Qlist(const double L, const int nMax, const bool evenPar, 
 	return Qlist;
 }
 
-// the diagonal entries of mChi0
+//  the diagonal entries of mChi0, with logic included
+//	additionally handles the "off-diagonal" contribution, factor of (1/2), *and* parity dependence via (external) evenPar
+Eigen::MatrixXcd Loss::mChi0DiagOld(double q, double w, double delta, Eigen::VectorXd& Qlist, double L, const bool evenPar)
+{
+	const int size = Qlist.size(); // only explicitly calculating the smaller, parity-restricted positive entries
+	Eigen::VectorXcd diagVec(size); // holder for diagonal entries
+
+	std::complex<double> diag, offDiag; // loop-entry holders
+
+	// mChi0Diag[0] has an edge case for even parity, the evenPar term handles this below
+	diag = (1.0 + evenPar) * L*sumPi0Old(q, w, delta, Qlist[0], L); // "diagonal" part double-counted for Qlist[0] == 0
+	offDiag = Pi0(q, w, delta, Qlist[0], 0) + Pi0(q, w, delta, 0, Qlist[0]); // off-diag NOT double-counted
+	diagVec[0] = 0.5 * (diag - offDiag); // overall factor of (1/2), unrelated to edge case
+
+	// speeds up debug, was previously un-noticeable in release
+#pragma omp parallel for private(diag,offDiag)
+	for (int counter = 1; counter < size; counter++) // loop when all contributions are non-zero
+	{
+		diag = L*sumPi0Old(q, w, delta, Qlist[counter], L); // sumPi0 has a 1/L scaling internally (may remove)
+		offDiag = Pi0(q, w, delta, 0, Qlist[counter]) + Pi0(q, w, delta, Qlist[counter], 0); // all contribute across this range
+		diagVec[counter] = 0.5 * (diag - offDiag); // includes overall factor of (1/2)!
+	}
+
+	return diagVec.asDiagonal();
+}
+
+//  the diagonal entries of mChi0, with all logic removed
 //	additionally handles the "off-diagonal" contribution, factor of (1/2), *and* parity dependence via (external) evenPar
 Eigen::MatrixXcd Loss::mChi0Diag(double q, double w, double delta, Eigen::VectorXd& Qlist, double L, const bool evenPar)
 {
@@ -310,46 +336,19 @@ Eigen::MatrixXcd Loss::mChi0Diag(double q, double w, double delta, Eigen::Vector
 	std::complex<double> offDiag; // bare Pi0 input
 
 	// mChi0Diag[0] has an edge case for even parity, the evenPar term handles this below
-	diag = (1+evenPar) * L * sumPi0(q, w, delta, Qlist[0], L); // "diagonal" part double-counted for Qlist[0] == 0
-	offDiag = Pi0(q, w, delta, Qlist[0], 0) + Pi0(q, w, delta, 0, Qlist[0]); // off-diag NOT double-counted
-	diagVec[0] = 0.5 * (diag - offDiag); // overall factor of (1/2), unrelated to edge case
-
-	// fill in the rest of the entries, no more edge cases to worry about
-	#pragma omp parallel for private(diag,offDiag)
-	for (int counter = 1; counter < size; counter++)
-	{
-		diag = L * sumPi0(q, w, delta, Qlist[counter], L); // sumPi0 has a 1/L scaling internally (may remove)
-		offDiag = Pi0(q, w, delta, Qlist[counter], 0) + Pi0(q, w, delta, 0, Qlist[counter]); // still needs the symmetrized result
-		diagVec[counter] = 0.5 * (diag - offDiag); // includes overall factor of (1/2)!
-	}
-
-	return diagVec.asDiagonal();
-}
-
-//  the diagonal entries of mChi0
-//	additionally handles the "off-diagonal" contribution, factor of (1/2), *and* parity dependence via (external) evenPar
-Eigen::MatrixXcd Loss::mChi0DiagNew(double q, double w, double delta, Eigen::VectorXd& Qlist, double L, const bool evenPar)
-{
-	const int size = Qlist.size(); // only explicitly calculating the smaller, parity-restricted positive entries
-	Eigen::VectorXcd diagVec(size); // holder for diagonal entries
-
-	std::complex<double> diag; // sumPi0 innput
-	std::complex<double> offDiag; // bare Pi0 input
-
-	// mChi0Diag[0] has an edge case for even parity, the evenPar term handles this below
-	diag = (1 + evenPar) * L * sumPi0New(q, w, delta, Qlist[0], L); // "diagonal" part double-counted for Qlist[0] == 0
+	diag = (1.0 + evenPar) * sumPi0(q, w, delta, Qlist[0], L); // "diagonal" part double-counted for Qlist[0] == 0
 	offDiag = Pi0Qn(q, w, delta, Qlist[0], 0) + Pi0Qn(q, w, delta, 0, Qlist[0])
 		- Pi0Qnp(q, w, delta, 0, Qlist[0]) - Pi0Qnp(q, w, delta, Qlist[0], 0); // off-diag NOT double-counted
 	diagVec[0] = 0.5 * (diag - offDiag); // overall factor of (1/2), unrelated to edge case
 
 	// cutoff when the additional "off-diagonal" terms don't contribute
-	int cutoff = int(std::ceil(((L/pi) - 1 + evenPar)/2));
+	int cutoff = std::min(int(std::ceil(((L / pi) - 1 + evenPar) / 2)), size); // safety check in case mz>>1
 
 	// speeds up debug, was previously un-noticeable in release
 	#pragma omp parallel for private(diag,offDiag)
 	for (int counter = 1; counter < cutoff; counter++) // loop when all contributions are non-zero
 	{
-		diag = L * sumPi0New(q, w, delta, Qlist[counter], L); // sumPi0 has a 1/L scaling internally (may remove)
+		diag = sumPi0(q, w, delta, Qlist[counter], L); // sumPi0 has a 1/L scaling internally (may remove)
 		offDiag = Pi0Qn(q, w, delta, 0, Qlist[counter]) + Pi0Qn(q, w, delta, Qlist[counter], 0)
 			- Pi0Qnp(q, w, delta, Qlist[counter], 0) - Pi0Qnp(q, w, delta, 0, Qlist[counter]); // all contribute across this range
 		diagVec[counter] = 0.5 * (diag - offDiag); // includes overall factor of (1/2)!
@@ -359,7 +358,7 @@ Eigen::MatrixXcd Loss::mChi0DiagNew(double q, double w, double delta, Eigen::Vec
 	#pragma omp parallel for private(diag,offDiag)
 	for (int counter = cutoff; counter < size; counter++) // loop when the additional "off-diagonal" terms vanish
 	{
-		diag = L * sumPi0New(q, w, delta, Qlist[counter], L); // sumPi0 has a 1/L scaling internally (may remove)
+		diag = sumPi0(q, w, delta, Qlist[counter], L); // sumPi0 has a 1/L scaling internally (may remove)
 		// this "off-diag" term always contributes
 		offDiag = Pi0Qn(q, w, delta, 0, Qlist[counter]) - Pi0Qnp(q, w, delta, Qlist[counter], 0);
 		diagVec[counter] = 0.5 * (diag - offDiag); // includes overall factor of (1/2)!
@@ -368,24 +367,67 @@ Eigen::MatrixXcd Loss::mChi0DiagNew(double q, double w, double delta, Eigen::Vec
 	return diagVec.asDiagonal();
 }
 
-// the unique off-diagonal entries, already symmetrized and with 0s on the diagonal
-Eigen::MatrixXcd Loss::mChi0OffDiag(double q, double w, double delta, Eigen::VectorXd& Qlist)
+// the logic-enabled unique off-diagonal symmetric entries
+Eigen::MatrixXcd Loss::mChi0OffDiagOld(double q, double w, double delta, Eigen::VectorXd& Qlist)
 {
 	const int size = Qlist.size();
-	Eigen::MatrixXcd offDiag = Eigen::MatrixXd::Constant(size, size, 0.0); // initialize zero matrix
 
-	#pragma omp parallel for
-	for (int m = 0; m < size; m++)
+	// loop to calculate the non-zero "Qn+Qm" type entries
+	Eigen::MatrixXcd offDiag = Eigen::MatrixXcd::Constant(size, size, 0.0); // initialize zero matrix
+#pragma omp parallel for
+	for (int m = 0; m < size; m++) // loop over entries where the "+" contribution is nonzero
 	{
-		for (int n = 0; n < m; n++) // only filling in unique entries manually up to symmetry, excluding diagonal
+		for (int n = 0; n < m; n++) // only filling up to n<->m symmetry OR cutoff
 		{
-			offDiag(m, n) = 0.5 * (Pi0(q, w, delta, (Qlist[m] + Qlist[n]) / 2, (Qlist[m] - Qlist[n]) / 2)
+			offDiag(m, n) += 0.5 * (Pi0(q, w, delta, (Qlist[m] + Qlist[n]) / 2, (Qlist[m] - Qlist[n]) / 2)
 				+ Pi0(q, w, delta, (Qlist[m] - Qlist[n]) / 2, (Qlist[m] + Qlist[n]) / 2)); // symmetrized result, includes (1/2)!
 		}
 	}
 
 	// fill in zero entries with symmetrized values, leaving 0s along diagonal
-	auto init = offDiag; // forced evaluation anyway, manual temporary
+	Eigen::MatrixXcd init = offDiag; // forced evaluation anyway, manual temporary
+	offDiag.transposeInPlace(); // transpose
+
+	return init + offDiag; // combine offDiag with its tranpose, maintaining 0s on the diagonal
+}
+
+
+// the unique off-diagonal entries, already symmetrized with 0s on diagonal and with all logic removed
+Eigen::MatrixXcd Loss::mChi0OffDiag(double q, double w, double delta, Eigen::VectorXd& Qlist, double L, const bool evenPar)
+{
+	const int size = Qlist.size();
+
+	// loop to calculate the non-zero "Qn+Qm" type entries
+	Eigen::MatrixXcd offDiag = Eigen::MatrixXcd::Constant(size, size, 0.0); // initialize zero matrix
+	const int pCutoff = std::ceil(L / pi) - 1 + evenPar; // cutoff for "+" type loop
+	#pragma omp parallel for
+	for (int m = 0; m < std::min(pCutoff,size); m++) // loop over entries where the "+" contribution is nonzero
+	{
+		for (int n = 0; n < std::min(pCutoff - m, m); n++) // only filling up to n<->m symmetry OR cutoff
+		{
+			offDiag(m, n) += 0.5 * (Pi0Qn(q, w, delta, (Qlist[m] + Qlist[n]) / 2, (Qlist[m] - Qlist[n]) / 2)
+				- Pi0Qnp(q, w, delta, (Qlist[m] - Qlist[n]) / 2, (Qlist[m] + Qlist[n]) / 2)); // symmetrized result, includes (1/2)!
+		}
+	}
+
+	// loop to calculate the non-zero "Qn-Qm" type entries
+	Eigen::MatrixXcd mOffDiag = Eigen::MatrixXcd::Constant(size, size, 0.0); // separate entris for concurrent calculation
+	const int mCutoff = std::floor(L / pi); // cutoff for "-" type loop (no parity-dependence)
+	#pragma omp parallel for
+	for (int m = 0; m < size; m++) // loop over entries where the "-" contribution is nonzero
+	{
+		for (int n = std::max(0, m - mCutoff); n < m; n++) // only filling up to n<->m symmetry OR cutoff
+		{
+			mOffDiag(m, n) += 0.5 * (Pi0Qn(q, w, delta, (Qlist[m] - Qlist[n]) / 2, (Qlist[m] + Qlist[n]) / 2)
+				- Pi0Qnp(q, w, delta, (Qlist[m] + Qlist[n]) / 2, (Qlist[m] - Qlist[n]) / 2)); // symmetrized result, includes (1/2)!
+		}
+	}
+
+	// combine the results of both loops
+	offDiag += mOffDiag;
+
+	// fill in zero entries with symmetrized values, leaving 0s along diagonal
+	Eigen::MatrixXcd init = offDiag; // forced evaluation anyway, manual temporary
 	offDiag.transposeInPlace(); // transpose
 
 	return init + offDiag; // combine offDiag with its tranpose, maintaining 0s on the diagonal
@@ -395,10 +437,9 @@ Eigen::MatrixXcd Loss::mChi0OffDiag(double q, double w, double delta, Eigen::Vec
 Eigen::MatrixXcd Loss::mChi0(double qs, double w, double delta, Eigen::VectorXd& Qlist, double Ls, const bool evenPar)
 	{
 	// enumerate minimal entries
-	auto diag = mChi0Diag(qs, w, delta, Qlist, Ls, evenPar);
-	auto offDiag = mChi0OffDiag(qs, w, delta, Qlist);
-
-	auto miniChi0 = diag - offDiag; // unique (by symmetry) entries, makes up bottom-right corner of full mChi0
+	Eigen::MatrixXcd diag = mChi0Diag(qs, w, delta, Qlist, Ls, evenPar);
+	Eigen::MatrixXcd offDiag = mChi0OffDiag(qs, w, delta, Qlist, Ls, evenPar);
+	Eigen::MatrixXcd miniChi0 = diag - offDiag; // issues loading expression into one line
 
 	// determine total size, parity logic off-loaded through evenPar
 	const int size = 2 * Qlist.size() - evenPar; // spans all integral indices: avoid double-counting zero if even
@@ -406,7 +447,7 @@ Eigen::MatrixXcd Loss::mChi0(double qs, double w, double delta, Eigen::VectorXd&
 	Eigen::MatrixXcd mChi0(size, size); // full matrix dimensions, parity-dependent via evenPar in size def
 	const int large = Qlist.size(); // dimensions of bottom-right block
 	const int small = large - evenPar; // dimensions of smaller side in the case of even parity, avoids double-counting diagonals
-
+	
 	// filling in mChi0 from miniChi0
 	#pragma omp parallel
 	{
